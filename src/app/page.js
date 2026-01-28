@@ -41,16 +41,8 @@ export default function Home() {
 
   // 默认加载一些内容
   useEffect(() => {
-      const loadInit = async () => {
-          setLoading(true);
-          try {
-            const res = await fetch('http://127.0.0.1:8000/api/recommend');
-            const data = await res.json();
-            setResults(data);
-          } catch(e) {}
-          setLoading(false);
-      };
-      loadInit();
+      // 按照大人要求，首页不再预加载任何推荐内容
+      // loadInit(); 
   }, []);
 
   return (
@@ -93,7 +85,7 @@ export default function Home() {
       <main className="container">
         <div style={{margin: '1rem 0 2rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '1rem'}}>
             <h2 style={{fontSize:'1.2rem', margin:0, color:'var(--text-dim)'}}>
-                {activeTab === '全部' ? '✨ 今日精选' : `🍿 当前频道: ${activeTab}`}
+                {activeTab === '全部' ? '' : `🍿 当前频道: ${activeTab}`}
             </h2>
         </div>
 
