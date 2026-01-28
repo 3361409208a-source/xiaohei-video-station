@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function Play() {
+function PlayContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
   const src = searchParams.get('src');
@@ -23,10 +23,10 @@ export default function Play() {
         const res = await fetch(`http://127.0.0.1:8000/api/detail?id=${id}&src=${encodeURIComponent(src)}`);
         const data = await res.json();
         setDetail(data);
-        if (!currentUrl && data.episodes.length > 0) {
+        if (!currentUrl && data.episodes && data.episodes.length > 0) {
           setCurrentUrl(data.episodes[0].url);
           setCurrentName(data.episodes[0].name);
-        } else {
+        } else if (data.episodes) {
             const current = data.episodes.find(e => e.url === initialUrl);
             if(current) setCurrentName(current.name);
         }
@@ -36,26 +36,38 @@ export default function Play() {
     };
 
     fetchDetail();
-  }, [id, src]);
+  }, [id, src, initialUrl]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && currentUrl) {
-      import('hls.js').then((Hls) => {
-        import('dplayer').then((DPlayer) => {
-          if (dpInstance.current) {
-            dpInstance.current.switchVideo({ url: currentUrl, type: 'hls' });
-            dpInstance.current.play();
-          } else {
-            dpInstance.current = new DPlayer.default({
-              container: playerRef.current,
-              autoplay: true,
-              theme: '#ec2d7a',
-              video: { url: currentUrl, type: 'hls' }
-            });
-          }
-        });
+      // 动态导入 DPlayer 和 Hls
+      Promise.all([
+        import('hls.js'),
+        import('dplayer')
+      ]).then(([HlsModule, DPlayerModule]) => {
+        const Hls = HlsModule.default;
+        const DPlayer = DPlayerModule.default;
+        
+        if (dpInstance.current) {
+          dpInstance.current.switchVideo({ url: currentUrl, type: 'hls' });
+          dpInstance.current.play();
+        } else {
+          dpInstance.current = new DPlayer({
+            container: playerRef.current,
+            autoplay: true,
+            theme: '#ec2d7a',
+            video: { url: currentUrl, type: 'hls' }
+          });
+        }
       });
     }
+    
+    return () => {
+        if (dpInstance.current) {
+            dpInstance.current.destroy();
+            dpInstance.current = null;
+        }
+    };
   }, [currentUrl]);
 
   return (
@@ -64,9 +76,16 @@ export default function Play() {
         <div className="container" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
           <Link href="/" className="logo">🐾 小黑搜影</Link>
           <div style={{fontSize: '0.9rem', color: '#888'}}>{detail?.title || '正在加载...'}</div>
-          <Link href="/" style={{color: '#ccc', text-decoration: 'none', fontSize: '0.8rem'}}>返回搜索</Link>
+          <Link href="/" style={{color: '#ccc', textDecoration: 'none', fontSize: '0.8rem'}}>返回搜索</Link>
         </div>
       </header>
+
+      <div className="broadcast-bar">
+        <div className="broadcast-content">
+          <span className="broadcast-icon">📢</span>
+          <span>防骗提醒：正在播放的视频中若出现任何广告水印，请务必提高警惕，切勿转账或参与，守护好您的财产安全！</span>
+        </div>
+      </div>
 
       <div className="play-layout">
         <div className="player-main" ref={playerRef}></div>
@@ -74,7 +93,7 @@ export default function Play() {
         <div className="episode-sidebar">
           <div className="sidebar-title">选集播放</div>
           <div className="ep-grid">
-            {detail?.episodes.map((ep) => (
+            {detail?.episodes?.map((ep) => (
               <div 
                 key={ep.url}
                 className={`ep-card ${currentUrl === ep.url ? 'active' : ''}`}
@@ -90,5 +109,13 @@ export default function Play() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Play() {
+  return (
+    <Suspense fallback={<div style={{color:'white', padding:'20px'}}>加载播放器中...</div>}>
+      <PlayContent />
+    </Suspense>
   );
 }
