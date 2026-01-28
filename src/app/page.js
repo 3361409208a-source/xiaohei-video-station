@@ -1,65 +1,82 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+import { useState } from 'react';
+import Link from 'next/link';
 
 export default function Home() {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const handleSearch = async () => {
+    if (!query.trim()) return;
+    setLoading(true);
+    setResults([]);
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/api/search?q=${encodeURIComponent(query)}`);
+      const data = await response.json();
+      setResults(data);
+    } catch (error) {
+      console.error('Search failed:', error);
+    }
+    setLoading(false);
+  };
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.js file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div>
+      <header className="site-header">
+        <div className="container">
+          <Link href="/" className="logo">🐾 小黑搜影 Next</Link>
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+      </header>
+
+      <section className="search-box-area">
+        <div className="container">
+          <div className="search-input-wrapper">
+            <input 
+              type="text" 
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder="搜索全网高清资源..." 
             />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <button onClick={handleSearch} disabled={loading}>
+                {loading ? '搜索中...' : '搜 索'}
+            </button>
+          </div>
         </div>
+      </section>
+
+      <main className="container">
+        {loading && (
+          <div id="loading">
+            <div className="spinner"></div>
+          </div>
+        )}
+
+        <div className="results-grid">
+          {results.map((item) => (
+            <Link 
+              key={`${item.id}-${item.source_name}`}
+              href={`/play?id=${item.id}&src=${encodeURIComponent(item.source_name)}&url=${encodeURIComponent(item.episodes[0]?.url || '')}`}
+              className="movie-item"
+            >
+              <div className="poster-con">
+                <img 
+                  className="movie-poster" 
+                  src={item.poster} 
+                  alt={item.title}
+                  onError={(e) => e.target.src = 'https://via.placeholder.com/200x300?text=No+Poster'}
+                />
+                <div className="movie-badge">{item.source_tip}</div>
+              </div>
+              <div className="movie-name">{item.title}</div>
+            </Link>
+          ))}
+        </div>
+        
+        {!loading && results.length === 0 && query && (
+          <div style={{textAlign:'center', opacity:0.5, padding:'5rem'}}>未找到相关资源</div>
+        )}
       </main>
     </div>
   );

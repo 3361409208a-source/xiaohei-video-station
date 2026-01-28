@@ -1,42 +1,190 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --primary: #ec2d7a;
+  --bg-dark: #0a0c10;
+  --bg-card: #161b22;
+  --text-main: #f0f6fc;
+  --text-dim: #8b949e;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-html,
 body {
-  max-width: 100vw;
+  margin: 0;
+  font-family: -apple-system, system-ui, sans-serif;
+  background-color: var(--bg-dark);
+  color: var(--text-main);
   overflow-x: hidden;
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+/* Header */
+.site-header {
+  padding: 1.5rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
-a {
-  color: inherit;
+.logo {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--primary);
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+/* Search Area */
+.search-box-area {
+  padding: 3rem 0;
+  text-align: center;
 }
+
+.search-input-wrapper {
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  background: var(--bg-card);
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.search-input-wrapper input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: white;
+  padding: 10px 15px;
+  font-size: 1rem;
+  outline: none;
+}
+
+.search-input-wrapper button {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0 24px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Poster Grid */
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 20px;
+  padding-bottom: 4rem;
+}
+
+.movie-item {
+  cursor: pointer;
+  transition: transform 0.3s;
+}
+
+.movie-item:hover {
+  transform: translateY(-8px);
+}
+
+.poster-con {
+  position: relative;
+  padding-top: 145%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+.movie-poster {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+
+.movie-badge {
+  position: absolute;
+  top: 8px; right: 8px;
+  background: var(--primary);
+  color: white;
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.movie-name {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Play Layout */
+.play-layout {
+  display: flex;
+  height: calc(100vh - 60px);
+}
+
+.player-main {
+  flex: 1;
+  background: #000;
+}
+
+.episode-sidebar {
+  width: 350px;
+  background: #111;
+  border-left: 1px solid #222;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.sidebar-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: var(--primary);
+}
+
+.ep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.ep-card {
+  background: #222;
+  color: #ccc;
+  border: 1px solid #333;
+  padding: 12px 5px;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ep-card:hover { border-color: var(--primary); color: #fff; }
+.ep-card.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+@media (max-width: 992px) {
+  .play-layout { flex-direction: column; height: auto; }
+  .episode-sidebar { width: 100%; border-left: none; border-top: 1px solid #222; }
+  .player-main { height: 56.25vw; }
+}
+
+.hidden { display: none; }
+.spinner {
+  width: 30px; height: 30px;
+  border: 3px solid rgba(236, 45, 122, 0.1);
+  border-left-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
