@@ -16,7 +16,6 @@ if sys.platform == "win32":
 
 app = FastAPI()
 
-# 允许 Next.js 前端跨域访问
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,7 +33,6 @@ HEADERS = {
 session = requests.Session()
 session.headers.update(HEADERS)
 
-# 核心资源站
 SOURCES = [
     {"name": "量子高清", "api": "https://cj.lziapi.com/api.php/provide/vod/from/lzm3u8/at/json/", "tip": "极速"},
     {"name": "飞飞资源", "api": "https://www.ffzyapi.com/api.php/provide/vod/from/ffm3u8/at/json/", "tip": "稳定"},
@@ -42,9 +40,13 @@ SOURCES = [
     {"name": "索尼资源", "api": "https://suoniapi.com/api.php/provide/vod/from/snm3u8/at/json/", "tip": "高清"}
 ]
 
-def fetch_engine_data(engine, keyword):
+def fetch_engine_data(engine, keyword=None, type_id=None):
     try:
-        api_url = f"{engine['api']}?ac=detail&wd={urllib.parse.quote(keyword)}"
+        if type_id:
+            api_url = f"{engine['api']}?ac=detail&t={type_id}"
+        else:
+            api_url = f"{engine['api']}?ac=detail&wd={urllib.parse.quote(keyword)}"
+            
         res = requests.get(api_url, timeout=5)
         data = res.json()
         results = []
@@ -56,47 +58,34 @@ def fetch_engine_data(engine, keyword):
                     parts = play_url_raw.split("#")
                     for p in parts:
                         if "$" in p:
-                            name, url = p.split("$", 1)
-                            if ".m3u8" in url.lower():
-                                ep_list.append({"name": name, "url": url})
+                            try:
+                                name, url = p.split("$", 1)
+                                if ".m3u8" in url.lower():
+                                    ep_list.append({"name": name, "url": url})
+                            except: continue
                 
                 results.append({
                     "id": str(item["vod_id"]),
                     "title": item["vod_name"],
                     "category": item.get("type_name", "影视"),
                     "poster": item.get("vod_pic", ""),
-                    "episodes": ep_list, # 1, 2, 3...
+                    "episodes": ep_list,
                     "source_name": engine["name"],
                     "source_tip": engine["tip"]
                 })
         return results
     except: return []
 
-@app.get("/api/recommend")
-def recommend():
-    results = []
-    for src in SOURCES[:2]:
-        try:
-            api_url = f"{src['api']}?ac=list&t=0&pg=1"
-            res = requests.get(api_url, timeout=3)
-            data = res.json()
-            if data.get("list"):
-                for item in data["list"][:8]:
-                    results.append({"title": item["vod_name"]})
-        except: continue
-    return results
-
-@app.get("/play")
-def play_page():
-    return FileResponse("play.html")
-
 @app.get("/api/search")
-def search(q: str = Query(...)):
-    q = q.strip()
-    if not q: return []
+def search(q: str = Query(None), t: str = Query(None)):
+    if not q and not t: return []
+    
+    type_map = {"电影": "1", "电视剧": "2", "综艺": "3", "动漫": "4"}
+    type_id = type_map.get(t) if t else None
+    
     unique_results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(SOURCES)) as executor:
-        futures = [executor.submit(fetch_engine_data, eng, q) for eng in SOURCES]
+        futures = [executor.submit(fetch_engine_data, eng, q, type_id) for eng in SOURCES]
         for future in concurrent.futures.as_completed(futures):
             for item in future.result():
                 key = item['title']
@@ -104,10 +93,13 @@ def search(q: str = Query(...)):
                     unique_results[key] = item
     return list(unique_results.values())
 
+@app.get("/api/recommend")
+def recommend():
+    # 模拟推荐，其实就是获取电影分类的最新更新
+    return fetch_engine_data(SOURCES[0], type_id="1")[:10]
+
 @app.get("/api/detail")
 def get_detail(id: str, src: str):
-    """获取单部剧集的完整详情（包含所有剧集链接）"""
-    # 查找对应的引擎
     engine = next((e for e in SOURCES if e["name"] == src), SOURCES[0])
     try:
         api_url = f"{engine['api']}?ac=detail&ids={id}"
@@ -121,18 +113,23 @@ def get_detail(id: str, src: str):
                 parts = play_url_raw.split("#")
                 for p in parts:
                     if "$" in p:
-                        name, url = p.split("$", 1)
-                        if ".m3u8" in url.lower():
-                            ep_list.append({"name": name, "url": url})
-            
+                        try:
+                            name, url = p.split("$", 1)
+                            if ".m3u8" in url.lower():
+                                ep_list.append({"name": name, "url": url})
+                        except: continue
             return {
                 "title": item["vod_name"],
                 "poster": item.get("vod_pic", ""),
                 "category": item.get("type_name", "影视"),
-                "episodes": ep_list # 返回 1, 2, 3... 原始顺序
+                "episodes": ep_list
             }
     except: pass
     return None
+
+@app.get("/play")
+def play_page():
+    return FileResponse("play.html")
 
 app.mount("/", StaticFiles(directory=".", html=True), name="static")
 
