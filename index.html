@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小黑搜影 - 瓷砖网格版</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="site-header">
+        <div class="container">
+            <a href="/" class="logo">🐾 小黑搜影</a>
+        </div>
+    </header>
+
+    <section class="search-box-area">
+        <div class="container">
+            <div class="search-input-wrapper">
+                <input type="text" id="searchInput" placeholder="搜索全网高清资源..." autocomplete="off">
+                <button id="searchBtn">搜 索</button>
+            </div>
+        </div>
+    </section>
+
+    <main class="container">
+        <div id="loading" class="hidden">
+            <div class="spinner"></div>
+        </div>
+
+        <div id="resultsList" class="results-grid">
+            <!-- 瓷砖网格海报将在这里展示 -->
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
