@@ -1,0 +1,22 @@
+# 忽略前端相关文件和目录
+src/
+public/
+.next/
+node_modules/
+package.json
+package-lock.json
+next.config.mjs
+jsconfig.json
+eslint.config.mjs
+
+# 忽略静态 HTML 文件
+index.html
+play.html
+script.js
+style.css
+
+# 只保留 Python 后端
+# main.py
+# requirements.txt
+# Procfile
+# runtime.txt
