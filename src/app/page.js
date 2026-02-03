@@ -18,18 +18,18 @@ export default function Home() {
   const handleSearch = async (q = '', type = null) => {
     const targetQ = q || query;
     if (!targetQ.trim() && !type) return;
-    
+
     setLoading(true);
     setResults([]);
     try {
-      let url = `http://127.0.0.1:8000/api/search?`;
+      let url = `/api/search?`;
       if (type) {
           url += `t=${encodeURIComponent(type)}`;
-          setQuery(''); // 切换频道时清空搜索框
+          setQuery('');
       } else {
           url += `q=${encodeURIComponent(targetQ)}`;
       }
-      
+
       const response = await fetch(url);
       const data = await response.json();
       setResults(data);

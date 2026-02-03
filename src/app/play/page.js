@@ -20,7 +20,7 @@ function PlayContent() {
 
     const fetchDetail = async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/detail?id=${id}&src=${encodeURIComponent(src)}`);
+        const res = await fetch(`/api/detail?id=${id}&src=${encodeURIComponent(src)}`);
         const data = await res.json();
         setDetail(data);
         if (!currentUrl && data.episodes && data.episodes.length > 0) {
