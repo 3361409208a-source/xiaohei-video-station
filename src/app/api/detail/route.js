@@ -5,7 +5,15 @@ export async function GET(request) {
   const id = searchParams.get('id');
   const src = searchParams.get('src');
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+  // 强制使用环境变量，不提供本地后备
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+  if (!API_URL) {
+    return NextResponse.json({
+      error: 'NEXT_PUBLIC_API_URL environment variable is not set. Please configure it in Vercel settings.'
+    }, { status: 500 });
+  }
+
   const backendUrl = new URL(`${API_URL}/api/detail?id=${id}&src=${encodeURIComponent(src)}`);
 
   try {
