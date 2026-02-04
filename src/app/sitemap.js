@@ -1,8 +1,11 @@
-// 动态生成sitemap，包含影片页面（限制数量避免服务器压力）
+// 强制重新部署并移除缓存逻辑，确保 Sitemap 实时抓取
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function sitemap() {
   const baseUrl = 'https://xiaohei-video-station.vercel.app';
-  // 在 Vercel 服务端执行时，NEXT_PUBLIC_ 变量也可以被服务器端代码读取
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+  // 核心修复：确保在服务端运行时也能拿到环境变量
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://xiaohei-video-station-production.up.railway.app';
 
   // 基础页面：首页优先级最高 1.0
   const routes = [
