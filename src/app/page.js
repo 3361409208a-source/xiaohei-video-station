@@ -97,9 +97,9 @@ export default function Home() {
 
         <div className="results-grid">
           {results.map((item) => (
-            <Link 
+            <Link
               key={`${item.id}-${item.source_name}`}
-              href={`/play?id=${item.id}&src=${encodeURIComponent(item.source_name)}&url=${encodeURIComponent(item.episodes[0]?.url || '')}`}
+              href={`/movie/${encodeURIComponent(`${item.title}-${item.id}`)}?src=${encodeURIComponent(item.source_name)}`}
               className="movie-item"
             >
               <div className="poster-con">

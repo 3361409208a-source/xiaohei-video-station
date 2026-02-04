@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Crawl-delay: 1
+
+# 限制爬虫速率，避免服务器压力
+User-agent: Googlebot
+Crawl-delay: 1
+
+User-agent: Bingbot
+Crawl-delay: 2
+
+Sitemap: https://xiaohei-video-station.vercel.app/sitemap.xml

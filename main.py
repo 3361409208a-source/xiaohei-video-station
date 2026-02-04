@@ -40,39 +40,76 @@ SOURCES = [
     {"name": "索尼资源", "api": "https://suoniapi.com/api.php/provide/vod/from/snm3u8/at/json/", "tip": "高清"}
 ]
 
-def fetch_engine_data(engine, keyword=None, type_id=None):
+def fetch_engine_data(engine, keyword=None, type_id=None, max_pages=5):
+    """获取资源站数据，支持分页获取更多内容"""
     try:
-        if type_id:
-            api_url = f"{engine['api']}?ac=detail&t={type_id}"
-        else:
-            api_url = f"{engine['api']}?ac=detail&wd={urllib.parse.quote(keyword)}"
-            
-        res = requests.get(api_url, timeout=5)
-        data = res.json()
         results = []
-        if data.get("list"):
-            for item in data["list"]:
-                play_url_raw = item.get("vod_play_url", "")
-                ep_list = []
-                if play_url_raw:
-                    parts = play_url_raw.split("#")
-                    for p in parts:
-                        if "$" in p:
-                            try:
-                                name, url = p.split("$", 1)
-                                if ".m3u8" in url.lower():
-                                    ep_list.append({"name": name, "url": url})
-                            except: continue
-                
-                results.append({
-                    "id": str(item["vod_id"]),
-                    "title": item["vod_name"],
-                    "category": item.get("type_name", "影视"),
-                    "poster": item.get("vod_pic", ""),
-                    "episodes": ep_list,
-                    "source_name": engine["name"],
-                    "source_tip": engine["tip"]
-                })
+
+        # 如果是按分类获取，支持多页
+        if type_id:
+            for page in range(1, max_pages + 1):
+                api_url = f"{engine['api']}?ac=detail&t={type_id}&pg={page}"
+                try:
+                    res = requests.get(api_url, timeout=5)
+                    data = res.json()
+
+                    if not data.get("list"):
+                        break  # 没有更多数据了
+
+                    for item in data["list"]:
+                        play_url_raw = item.get("vod_play_url", "")
+                        ep_list = []
+                        if play_url_raw:
+                            parts = play_url_raw.split("#")
+                            for p in parts:
+                                if "$" in p:
+                                    try:
+                                        name, url = p.split("$", 1)
+                                        if ".m3u8" in url.lower():
+                                            ep_list.append({"name": name, "url": url})
+                                    except: continue
+
+                        results.append({
+                            "id": str(item["vod_id"]),
+                            "title": item["vod_name"],
+                            "category": item.get("type_name", "影视"),
+                            "poster": item.get("vod_pic", ""),
+                            "episodes": ep_list,
+                            "source_name": engine["name"],
+                            "source_tip": engine["tip"]
+                        })
+                except:
+                    break  # 请求失败，停止获取更多页
+        else:
+            # 关键词搜索，只获取第一页
+            api_url = f"{engine['api']}?ac=detail&wd={urllib.parse.quote(keyword)}"
+            res = requests.get(api_url, timeout=5)
+            data = res.json()
+
+            if data.get("list"):
+                for item in data["list"]:
+                    play_url_raw = item.get("vod_play_url", "")
+                    ep_list = []
+                    if play_url_raw:
+                        parts = play_url_raw.split("#")
+                        for p in parts:
+                            if "$" in p:
+                                try:
+                                    name, url = p.split("$", 1)
+                                    if ".m3u8" in url.lower():
+                                        ep_list.append({"name": name, "url": url})
+                                except: continue
+
+                    results.append({
+                        "id": str(item["vod_id"]),
+                        "title": item["vod_name"],
+                        "category": item.get("type_name", "影视"),
+                        "poster": item.get("vod_pic", ""),
+                        "episodes": ep_list,
+                        "source_name": engine["name"],
+                        "source_tip": engine["tip"]
+                    })
+
         return results
     except: return []
 
@@ -96,7 +133,57 @@ def search(q: str = Query(None), t: str = Query(None)):
 @app.get("/api/recommend")
 def recommend():
     # 模拟推荐，其实就是获取电影分类的最新更新
-    return fetch_engine_data(SOURCES[0], type_id="1")[:10]
+    return fetch_engine_data(SOURCES[0], type_id="1", max_pages=1)[:10]
+
+@app.get("/api/latest")
+def get_latest(category: str = Query(None), hours: int = Query(24)):
+    """获取最近更新的影片
+
+    参数:
+    - category: 分类（电影/电视剧/动漫/综艺），不传则获取所有分类
+    - hours: 最近N小时更新的内容，默认24小时
+    """
+    type_map = {"电影": "1", "电视剧": "2", "综艺": "3", "动漫": "4"}
+
+    if category and category in type_map:
+        # 获取指定分类的最新更新
+        type_id = type_map[category]
+        results = []
+
+        # 从所有资源站获取最新数据
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(SOURCES)) as executor:
+            futures = [executor.submit(fetch_engine_data, eng, type_id=type_id, max_pages=2) for eng in SOURCES]
+            for future in concurrent.futures.as_completed(futures):
+                results.extend(future.result())
+
+        # 按影片ID去重
+        unique_results = {}
+        for item in results:
+            key = item['id']
+            if key not in unique_results or len(item['episodes']) > len(unique_results[key]['episodes']):
+                unique_results[key] = item
+
+        return list(unique_results.values())[:50]
+    else:
+        # 获取所有分类的最新更新
+        all_results = []
+        for cat, type_id in type_map.items():
+            results = []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=len(SOURCES)) as executor:
+                futures = [executor.submit(fetch_engine_data, eng, type_id=type_id, max_pages=1) for eng in SOURCES]
+                for future in concurrent.futures.as_completed(futures):
+                    results.extend(future.result())
+
+            # 每个分类取前10部
+            unique_results = {}
+            for item in results:
+                key = item['id']
+                if key not in unique_results:
+                    unique_results[key] = item
+
+            all_results.extend(list(unique_results.values())[:10])
+
+        return all_results
 
 @app.get("/api/detail")
 def get_detail(id: str, src: str):
