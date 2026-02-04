@@ -40,22 +40,24 @@ SOURCES = [
     {"name": "索尼资源", "api": "https://suoniapi.com/api.php/provide/vod/from/snm3u8/at/json/", "tip": "高清"}
 ]
 
-def fetch_engine_data(engine, keyword=None, type_id=None, max_pages=5):
+def fetch_engine_data(engine, keyword=None, type_id=None, max_pages=10):
     """获取资源站数据，支持分页获取更多内容"""
     try:
         results = []
 
         # 如果没有关键词也没有分类ID，则是获取“最新更新”
         if not keyword and not type_id:
-            api_url = f"{engine['api']}?ac=detail"
-            try:
-                res = requests.get(api_url, timeout=5)
-                res.encoding = 'utf-8'
-                data = res.json()
-                if data.get("list"):
+            # 循环获取多页最新数据，确保基数足够大
+            for page in range(1, 4): 
+                api_url = f"{engine['api']}?ac=detail&pg={page}"
+                try:
+                    res = requests.get(api_url, timeout=8)
+                    res.encoding = 'utf-8'
+                    data = res.json()
+                    if not data.get("list"): break
                     for item in data["list"]:
                         results.append(parse_item(item, engine))
-            except: pass
+                except: break
             return results
 
         # 如果是按分类获取，支持多页
@@ -63,7 +65,7 @@ def fetch_engine_data(engine, keyword=None, type_id=None, max_pages=5):
             for page in range(1, max_pages + 1):
                 api_url = f"{engine['api']}?ac=detail&t={type_id}&pg={page}"
                 try:
-                    res = requests.get(api_url, timeout=5)
+                    res = requests.get(api_url, timeout=8)
                     res.encoding = 'utf-8'
                     data = res.json()
 
@@ -77,7 +79,7 @@ def fetch_engine_data(engine, keyword=None, type_id=None, max_pages=5):
         else:
             # 关键词搜索，只获取第一页
             api_url = f"{engine['api']}?ac=detail&wd={urllib.parse.quote(keyword)}"
-            res = requests.get(api_url, timeout=5)
+            res = requests.get(api_url, timeout=8)
             res.encoding = 'utf-8'
             data = res.json()
 
