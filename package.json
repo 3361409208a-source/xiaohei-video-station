@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@vercel/analytics": "^1.6.1",
     "dplayer": "^1.27.1",
     "hls.js": "^1.6.15",
     "next": "16.1.6",
