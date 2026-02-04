@@ -20,13 +20,40 @@ export default async function sitemap() {
   // 如果配置了后台API，尝试获取影片列表
   if (API_URL) {
     try {
-      // 通过分类获取影片（电影、电视剧、动漫、综艺）
-      const categories = ['电影', '电视剧', '动漫', '综艺'];
-      const MAX_MOVIES_PER_CATEGORY = 250; // 4个分类共1000部，达成1000部目标
-
-      // 使用Map按影片ID去重
+      // 这里的逻辑改为请求后端的“最新更新”接口，而不是按分类死磕（因为分类过滤在某些源上不生效）
       const movieMap = new Map();
 
+      try {
+        // 请求不带参数的 search 接口，获取全源最新 100+ 条数据
+        const response = await fetch(`${API_URL}/api/search`, {
+          next: { revalidate: 3600 },
+          signal: AbortSignal.timeout(10000)
+        });
+
+        if (response.ok) {
+          const movies = await response.json();
+          movies.forEach((movie, index) => {
+            if (movie.id && movie.source_name && movie.title) {
+              const slug = `${movie.title}-${movie.id}`;
+              const priority = index < 30 ? 0.9 : 0.7;
+              movieMap.set(`${movie.id}-${movie.source_name}`, {
+                url: `${baseUrl}/movie/${encodeURIComponent(slug)}?src=${encodeURIComponent(movie.source_name)}`,
+                lastModified: new Date(),
+                changeFrequency: 'weekly',
+                priority: priority,
+                languages: {
+                  'zh-CN': `${baseUrl}/movie/${encodeURIComponent(slug)}?src=${encodeURIComponent(movie.source_name)}`,
+                },
+              });
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Sitemap direct fetch failed:", e);
+      }
+
+      // 如果全源抓取不够，再尝试各个分类的深度抓取
+      const categories = ['电影', '电视剧', '动漫', '综艺'];
       for (const category of categories) {
         try {
           const response = await fetch(`${API_URL}/api/search?t=${encodeURIComponent(category)}`, {

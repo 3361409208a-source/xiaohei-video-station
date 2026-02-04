@@ -45,77 +45,93 @@ def fetch_engine_data(engine, keyword=None, type_id=None, max_pages=5):
     try:
         results = []
 
+        # 如果没有关键词也没有分类ID，则是获取“最新更新”
+        if not keyword and not type_id:
+            api_url = f"{engine['api']}?ac=detail"
+            try:
+                res = requests.get(api_url, timeout=5)
+                res.encoding = 'utf-8'
+                data = res.json()
+                if data.get("list"):
+                    for item in data["list"]:
+                        results.append(parse_item(item, engine))
+            except: pass
+            return results
+
         # 如果是按分类获取，支持多页
         if type_id:
             for page in range(1, max_pages + 1):
                 api_url = f"{engine['api']}?ac=detail&t={type_id}&pg={page}"
                 try:
                     res = requests.get(api_url, timeout=5)
+                    res.encoding = 'utf-8'
                     data = res.json()
 
                     if not data.get("list"):
                         break  # 没有更多数据了
 
                     for item in data["list"]:
-                        play_url_raw = item.get("vod_play_url", "")
-                        ep_list = []
-                        if play_url_raw:
-                            parts = play_url_raw.split("#")
-                            for p in parts:
-                                if "$" in p:
-                                    try:
-                                        name, url = p.split("$", 1)
-                                        if ".m3u8" in url.lower():
-                                            ep_list.append({"name": name, "url": url})
-                                    except: continue
-
-                        results.append({
-                            "id": str(item["vod_id"]),
-                            "title": item["vod_name"],
-                            "category": item.get("type_name", "影视"),
-                            "poster": item.get("vod_pic", ""),
-                            "episodes": ep_list,
-                            "source_name": engine["name"],
-                            "source_tip": engine["tip"]
-                        })
+                        results.append(parse_item(item, engine))
                 except:
                     break  # 请求失败，停止获取更多页
         else:
             # 关键词搜索，只获取第一页
             api_url = f"{engine['api']}?ac=detail&wd={urllib.parse.quote(keyword)}"
             res = requests.get(api_url, timeout=5)
+            res.encoding = 'utf-8'
             data = res.json()
 
             if data.get("list"):
                 for item in data["list"]:
-                    play_url_raw = item.get("vod_play_url", "")
-                    ep_list = []
-                    if play_url_raw:
-                        parts = play_url_raw.split("#")
-                        for p in parts:
-                            if "$" in p:
-                                try:
-                                    name, url = p.split("$", 1)
-                                    if ".m3u8" in url.lower():
-                                        ep_list.append({"name": name, "url": url})
-                                except: continue
-
-                    results.append({
-                        "id": str(item["vod_id"]),
-                        "title": item["vod_name"],
-                        "category": item.get("type_name", "影视"),
-                        "poster": item.get("vod_pic", ""),
-                        "episodes": ep_list,
-                        "source_name": engine["name"],
-                        "source_tip": engine["tip"]
-                    })
+                    results.append(parse_item(item, engine))
 
         return results
     except: return []
 
+def parse_item(item, engine):
+    """解析单个影片条目数据"""
+    play_url_raw = item.get("vod_play_url", "")
+    ep_list = []
+    if play_url_raw:
+        parts = play_url_raw.replace('\r', '').split("#")
+        for p in parts:
+            if "$" in p:
+                try:
+                    name, url = p.split("$", 1)
+                    if any(ext in url.lower() for ext in [".m3u8", ".mp4"]):
+                        ep_list.append({"name": name, "url": url})
+                except: continue
+
+    return {
+        "id": str(item["vod_id"]),
+        "title": item["vod_name"],
+        "category": item.get("type_name", "影视"),
+        "poster": item.get("vod_pic", ""),
+        "director": item.get("vod_director", ""),
+        "actor": item.get("vod_actor", ""),
+        "year": item.get("vod_year", ""),
+        "area": item.get("vod_area", ""),
+        "remark": item.get("vod_remarks", ""),
+        "description": item.get("vod_content", "").replace('<p>', '').replace('</p>', '').replace('<br>', '\n'),
+        "episodes": ep_list,
+        "source_name": engine["name"],
+        "source_tip": engine["tip"]
+    }
+
 @app.get("/api/search")
 def search(q: str = Query(None), t: str = Query(None)):
-    if not q and not t: return []
+    if not q and not t:
+        # 如果既没有关键词也没有分类，返回所有源的最新更新
+        unique_results = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(SOURCES)) as executor:
+            # 每个源取第一页数据（ac=detail 不带 t 参数即为最新更新）
+            futures = [executor.submit(fetch_engine_data, eng) for eng in SOURCES]
+            for future in concurrent.futures.as_completed(futures):
+                for item in future.result():
+                    key = item['title']
+                    if key not in unique_results:
+                        unique_results[key] = item
+        return list(unique_results.values())
     
     type_map = {"电影": "1", "电视剧": "2", "综艺": "3", "动漫": "4"}
     type_id = type_map.get(t) if t else None
