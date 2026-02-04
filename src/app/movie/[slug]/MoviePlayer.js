@@ -8,6 +8,7 @@ export default function MoviePlayer({ id, src, initialUrl }) {
   const [currentName, setCurrentName] = useState('');
   const playerRef = useRef(null);
   const dpInstance = useRef(null);
+  const [isDescCollapsed, setIsDescCollapsed] = useState(true);
 
   useEffect(() => {
     if (!id || !src) return;
@@ -70,7 +71,7 @@ export default function MoviePlayer({ id, src, initialUrl }) {
   }, [currentUrl]);
 
   return (
-    <div style={{height:'100vh', display:'flex', flexDirection:'column'}}>
+    <div style={{minHeight:'100vh', display:'flex', flexDirection:'column', overflowX: 'hidden'}}>
       <header className="site-header" style={{background: '#111'}}>
         <div className="container" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
           <Link href="/" className="logo">🐾 小黑搜影</Link>
@@ -90,19 +91,41 @@ export default function MoviePlayer({ id, src, initialUrl }) {
         <div className="player-main">
           <div ref={playerRef} style={{ width: '100%', aspectRatio: '16/9' }}></div>
           {detail && (
-            <div className="movie-info-card" style={{ padding: '20px', color: '#ccc', background: '#1a1a1a', marginTop: '10px', borderRadius: '8px' }}>
-              <h1 style={{ color: '#fff', fontSize: '1.5rem', marginBottom: '10px' }}>{detail.title}</h1>
-              <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', fontSize: '0.9rem' }}>
-                {detail.year && <span>年份：{detail.year}</span>}
-                {detail.area && <span>地区：{detail.area}</span>}
-                {detail.category && <span>分类：{detail.category}</span>}
-                {detail.remark && <span style={{ color: '#ec2d7a' }}>{detail.remark}</span>}
+            <div className="movie-info-card" style={{ padding: '15px', color: '#ccc', background: '#1a1a1a', marginTop: '10px', borderRadius: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <h1 style={{ color: '#fff', fontSize: '1.2rem', margin: '0 0 10px 0' }}>{detail.title}</h1>
+                {detail.remark && <span style={{ color: '#ec2d7a', fontSize: '0.85rem', fontWeight: '700' }}>{detail.remark}</span>}
               </div>
-              {detail.director && <p style={{ marginBottom: '5px' }}><strong>导演：</strong>{detail.director}</p>}
-              {detail.actor && <p style={{ marginBottom: '10px' }}><strong>主演：</strong>{detail.actor}</p>}
-              <div style={{ borderTop: '1px solid #333', paddingTop: '10px' }}>
-                <h3 style={{ color: '#fff', fontSize: '1.1rem', marginBottom: '8px' }}>剧情简介</h3>
-                <p style={{ lineHeight: '1.6', color: '#999' }}>{detail.description || '暂无简介'}</p>
+              
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px', fontSize: '0.8rem', opacity: 0.8 }}>
+                {detail.year && <span>{detail.year}</span>}
+                {detail.area && <span>{detail.area}</span>}
+                {detail.category && <span>{detail.category}</span>}
+              </div>
+
+              <div style={{ fontSize: '0.85rem', lineHeight: '1.5' }}>
+                {detail.actor && <p style={{ margin: '0 0 5px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><strong>主演：</strong>{detail.actor}</p>}
+                
+                <div style={{ borderTop: '1px solid #333', marginTop: '10px', paddingTop: '10px' }}>
+                   <div 
+                    style={{ 
+                      color: '#999', 
+                      display: '-webkit-box',
+                      WebkitLineClamp: isDescCollapsed ? 2 : 'unset',
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      transition: 'all 0.3s'
+                    }}
+                   >
+                     <strong>简介：</strong>{detail.description || '暂无简介'}
+                   </div>
+                   <div 
+                    onClick={() => setIsDescCollapsed(!isDescCollapsed)}
+                    style={{ color: 'var(--primary)', fontSize: '0.8rem', marginTop: '5px', textAlign: 'center', cursor: 'pointer' }}
+                   >
+                     {isDescCollapsed ? '展开详情 ▾' : '收起详情 ▴'}
+                   </div>
+                </div>
               </div>
             </div>
           )}

@@ -6,12 +6,27 @@
   --text-dim: #8b949e;
 }
 
-body {
+* {
+  box-sizing: border-box;
+}
+
+img, video, canvas {
+  max-width: 100%;
+}
+
+html, body {
   margin: 0;
   font-family: -apple-system, system-ui, sans-serif;
   background-color: var(--bg-dark);
   color: var(--text-main);
-  overflow-x: hidden;
+  overflow-x: hidden; /* 防止左右滑动 */
+  width: 100%;
+  position: relative;
+}
+
+/* 针对 iOS 的橡皮底滑动优化 */
+body {
+  min-height: 100%;
 }
 
 .container {
@@ -210,21 +225,24 @@ body {
 .broadcast-bar {
   background: rgba(236, 45, 122, 0.15);
   border-bottom: 1px solid rgba(236, 45, 122, 0.2);
-  padding: 8px 0;
+  padding: 10px 0;
   overflow: hidden;
   position: relative;
+  height: 20px;
+  display: flex;
+  align-items: center;
 }
 
 .broadcast-content {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 15px;
   font-size: 0.85rem;
   color: #ffb8d1;
   font-weight: 500;
   white-space: nowrap;
-  animation: scroll-text 30s linear infinite;
-  padding-left: 100%; /* 从右侧开始进入 */
+  position: absolute;
+  animation: scroll-text 25s linear infinite;
 }
 
 .broadcast-icon {
@@ -233,10 +251,46 @@ body {
 }
 
 @keyframes scroll-text {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-200%); } /* 确保完全滑出 */
+  from { transform: translateX(100vw); }
+  to { transform: translateX(-100%); }
 }
 
 @media (max-width: 768px) {
-  .broadcast-content { animation: scroll-text 12s linear infinite; }
+  .container {
+    padding: 0 10px;
+  }
+  .site-header {
+    padding: 1rem 0;
+  }
+  .search-box-area {
+    padding: 1rem 0;
+  }
+  .broadcast-bar { height: 18px; padding: 8px 0; }
+  .broadcast-content { 
+    animation-duration: 18s; 
+    font-size: 0.8rem;
+  }
+  .results-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 0 0 4rem;
+    width: 100%;
+  }
+  .movie-item {
+    width: 100%;
+    min-width: 0; /* 允许 grid item 缩小 */
+  }
+  .movie-name {
+    font-size: 0.75rem;
+    margin-top: 5px;
+    padding: 0 2px;
+  }
+  .movie-badge {
+    font-size: 0.5rem;
+    padding: 1px 3px;
+    top: 4px; right: 4px;
+  }
+  .poster-con {
+    border-radius: 6px;
+  }
 }
