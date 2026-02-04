@@ -120,13 +120,21 @@ def parse_item(item, engine):
         "source_tip": engine["tip"]
     }
 
+# ... (previous code)
+
+SUB_CATEGORIES = {
+    "电影": [6, 7, 8, 9, 10, 11, 12, 20], 
+    "电视剧": [13, 14, 15, 16, 21, 22, 23, 24], 
+    "综艺": [25, 26, 27, 28],
+    "动漫": [29, 30, 31, 32, 33]
+}
+
 @app.get("/api/search")
 def search(q: str = Query(None), t: str = Query(None)):
+    # 1. 如果没有参数，返回最新更新 (首页推荐用)
     if not q and not t:
-        # 如果既没有关键词也没有分类，返回所有源的最新更新
         unique_results = {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(SOURCES)) as executor:
-            # 每个源取第一页数据（ac=detail 不带 t 参数即为最新更新）
             futures = [executor.submit(fetch_engine_data, eng) for eng in SOURCES]
             for future in concurrent.futures.as_completed(futures):
                 for item in future.result():
@@ -135,6 +143,38 @@ def search(q: str = Query(None), t: str = Query(None)):
                         unique_results[key] = item
         return list(unique_results.values())
     
+    # 2. 如果只有分类参数 (Sitemap 或分类页用)，使用子分类并发抓取
+    if not q and t:
+        target_ids = []
+        if t in SUB_CATEGORIES:
+            target_ids = SUB_CATEGORIES[t]
+        else:
+            # 回退到旧的单一ID映射
+            type_map = {"电影": "1", "电视剧": "2", "综艺": "3", "动漫": "4"}
+            if t in type_map:
+                target_ids = [type_map[t]]
+        
+        if target_ids:
+            unique_results = {}
+            # 并发抓取所有子分类，每个子分类抓取1页
+            with concurrent.futures.ThreadPoolExecutor(max_workers=40) as executor:
+                futures = []
+                for eng in SOURCES:
+                    for tid in target_ids:
+                        futures.append(executor.submit(fetch_engine_data, eng, keyword=None, type_id=str(tid), max_pages=1))
+                
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        items = future.result()
+                        for item in items:
+                            key = item['title']
+                            # 优先保留集数更多的源 (比如高清 vs 标清)
+                            if key not in unique_results or len(item['episodes']) > len(unique_results[key]['episodes']):
+                                unique_results[key] = item
+                    except: continue
+            return list(unique_results.values())
+
+    # 3. 如果有搜索关键词 (搜索功能用)
     type_map = {"电影": "1", "电视剧": "2", "综艺": "3", "动漫": "4"}
     type_id = type_map.get(t) if t else None
     
