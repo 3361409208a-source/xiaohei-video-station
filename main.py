@@ -187,31 +187,47 @@ def get_latest(category: str = Query(None), hours: int = Query(24)):
 
 @app.get("/api/detail")
 def get_detail(id: str, src: str):
-    engine = next((e for e in SOURCES if e["name"] == src), SOURCES[0])
+    # 彻底解决 URL 编码导致的匹配失败
+    decoded_src = urllib.parse.unquote(src)
+    engine = next((e for e in SOURCES if e["name"] == decoded_src or e["name"] == src), SOURCES[0])
+    
     try:
         api_url = f"{engine['api']}?ac=detail&ids={id}"
         res = requests.get(api_url, timeout=5)
+        # 彻底解决乱码：如果响应头没写 charset，requests 可能猜错成 ISO-8859-1
+        res.encoding = res.apparent_encoding if res.apparent_encoding else 'utf-8'
+        
         data = res.json()
         if data.get("list"):
             item = data["list"][0]
             play_url_raw = item.get("vod_play_url", "")
             ep_list = []
             if play_url_raw:
-                parts = play_url_raw.split("#")
-                for p in parts:
+                # 兼容多种分割符和空行
+                lines = play_url_raw.replace('\r', '').split('#')
+                for p in lines:
                     if "$" in p:
                         try:
                             name, url = p.split("$", 1)
-                            if ".m3u8" in url.lower():
+                            # 增加对多种流媒体后缀的支持
+                            if any(ext in url.lower() for ext in [".m3u8", ".mp4", ".flv", ".m4v"]):
                                 ep_list.append({"name": name, "url": url})
                         except: continue
+            
             return {
-                "title": item["vod_name"],
+                "title": item.get("vod_name", "未知"),
                 "poster": item.get("vod_pic", ""),
                 "category": item.get("type_name", "影视"),
+                "director": item.get("vod_director", ""),
+                "actor": item.get("vod_actor", ""),
+                "year": item.get("vod_year", ""),
+                "area": item.get("vod_area", ""),
+                "remark": item.get("vod_remarks", ""),
+                "description": item.get("vod_content", "").replace('<p>', '').replace('</p>', '').replace('<br>', '\n').replace('&nbsp;', ' '),
                 "episodes": ep_list
             }
-    except: pass
+    except Exception as e:
+        print(f"Detail fetch error: {e}")
     return None
 
 @app.get("/play")

@@ -1,15 +1,19 @@
 // 动态生成sitemap，包含影片页面（限制数量避免服务器压力）
 export default async function sitemap() {
   const baseUrl = 'https://xiaohei-video-station.vercel.app';
+  // 在 Vercel 服务端执行时，NEXT_PUBLIC_ 变量也可以被服务器端代码读取
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-  // 基础页面
+  // 基础页面：首页优先级最高 1.0
   const routes = [
     {
       url: baseUrl,
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 1.0,
+      languages: {
+        'zh-CN': `${baseUrl}`,
+      },
     },
   ];
 
@@ -18,48 +22,49 @@ export default async function sitemap() {
     try {
       // 通过分类获取影片（电影、电视剧、动漫、综艺）
       const categories = ['电影', '电视剧', '动漫', '综艺'];
-      const movieUrls = [];
-      const MAX_MOVIES_PER_CATEGORY = 200; // 限制每个分类最多200部，避免压力过大
+      const MAX_MOVIES_PER_CATEGORY = 250; // 4个分类共1000部，达成1000部目标
 
-      // 使用Map按影片ID去重（同一影片可能在多个资源站）
+      // 使用Map按影片ID去重
       const movieMap = new Map();
 
       for (const category of categories) {
         try {
           const response = await fetch(`${API_URL}/api/search?t=${encodeURIComponent(category)}`, {
-            next: { revalidate: 86400 }, // 缓存24小时，减少API请求
-            signal: AbortSignal.timeout(5000) // 5秒超时
+            next: { revalidate: 3600 }, // 缓存1小时，保证新鲜度
+            signal: AbortSignal.timeout(8000) // 采集站可能慢，给8秒宽限
           });
 
           if (response.ok) {
             const movies = await response.json();
 
-            // 只取前N部影片，避免sitemap过大
+            // 只取前N部影片
             const limitedMovies = movies.slice(0, MAX_MOVIES_PER_CATEGORY);
 
-            limitedMovies.forEach(movie => {
+            limitedMovies.forEach((movie, index) => {
               if (movie.id && movie.source_name && movie.title) {
-                // 按影片ID去重，同一影片只保留第一个遇到的资源站
                 if (!movieMap.has(movie.id)) {
-                  // 生成SEO友好的slug: {title}-{id}
                   const slug = `${movie.title}-${movie.id}`;
+                  // 前20部认为是热门，优先级 0.9，其他 0.7
+                  const priority = index < 20 ? 0.9 : 0.7;
+                  
                   movieMap.set(movie.id, {
                     url: `${baseUrl}/movie/${encodeURIComponent(slug)}?src=${encodeURIComponent(movie.source_name)}`,
                     lastModified: new Date(),
                     changeFrequency: 'weekly',
-                    priority: 0.8,
+                    priority: priority,
+                    languages: {
+                      'zh-CN': `${baseUrl}/movie/${encodeURIComponent(slug)}?src=${encodeURIComponent(movie.source_name)}`,
+                    },
                   });
                 }
               }
             });
           }
         } catch (error) {
-          console.error(`Failed to fetch ${category}:`, error);
-          // 失败时继续处理其他分类
+          console.error(`Failed to fetch ${category} for sitemap:`, error);
         }
       }
 
-      // 将去重后的影片添加到sitemap
       routes.push(...Array.from(movieMap.values()));
     } catch (error) {
       console.error('Failed to generate movie sitemap:', error);

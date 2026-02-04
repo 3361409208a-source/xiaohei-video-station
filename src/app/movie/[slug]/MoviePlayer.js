@@ -87,7 +87,26 @@ export default function MoviePlayer({ id, src, initialUrl }) {
       </div>
 
       <div className="play-layout">
-        <div className="player-main" ref={playerRef}></div>
+        <div className="player-main">
+          <div ref={playerRef} style={{ width: '100%', aspectRatio: '16/9' }}></div>
+          {detail && (
+            <div className="movie-info-card" style={{ padding: '20px', color: '#ccc', background: '#1a1a1a', marginTop: '10px', borderRadius: '8px' }}>
+              <h1 style={{ color: '#fff', fontSize: '1.5rem', marginBottom: '10px' }}>{detail.title}</h1>
+              <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', fontSize: '0.9rem' }}>
+                {detail.year && <span>年份：{detail.year}</span>}
+                {detail.area && <span>地区：{detail.area}</span>}
+                {detail.category && <span>分类：{detail.category}</span>}
+                {detail.remark && <span style={{ color: '#ec2d7a' }}>{detail.remark}</span>}
+              </div>
+              {detail.director && <p style={{ marginBottom: '5px' }}><strong>导演：</strong>{detail.director}</p>}
+              {detail.actor && <p style={{ marginBottom: '10px' }}><strong>主演：</strong>{detail.actor}</p>}
+              <div style={{ borderTop: '1px solid #333', paddingTop: '10px' }}>
+                <h3 style={{ color: '#fff', fontSize: '1.1rem', marginBottom: '8px' }}>剧情简介</h3>
+                <p style={{ lineHeight: '1.6', color: '#999' }}>{detail.description || '暂无简介'}</p>
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="episode-sidebar">
           <div className="sidebar-title">选集播放</div>

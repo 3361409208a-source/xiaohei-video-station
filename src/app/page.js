@@ -41,8 +41,8 @@ export default function Home() {
 
   // 默认加载一些内容
   useEffect(() => {
-      // 按照大人要求，首页不再预加载任何推荐内容
-      // loadInit(); 
+      // 预加载一些最新内容供搜索引擎抓取
+      handleSearch('', '电影');
   }, []);
 
   return (
