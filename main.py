@@ -28,11 +28,10 @@ app.add_middleware(
 )
 
 # 文件路径配置
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
-SOURCES_FILE = os.path.join(BASE_DIR, "sources.json")
-TRENDS_FILE = os.path.join(BASE_DIR, "search_trends.json")
-SITEMAP_DATA = os.path.join(BASE_DIR, "public", "sitemap_data.json")
+CONFIG_FILE = "config.json"
+SOURCES_FILE = "sources.json"
+TRENDS_FILE = "search_trends.json"
+SITEMAP_DATA = "public/sitemap_data.json"
 ADMIN_PASSWORD = "7897"
 
 def load_json(path, default):
@@ -54,6 +53,24 @@ def get_active_sources():
 def verify_admin(x_admin_token: str = Header(None)):
     if x_admin_token != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+# 内存缓存，大幅提升分页速度
+_DATA_CACHE = {"items": [], "time": 0}
+
+def get_full_data():
+    now = time.time()
+    if not _DATA_CACHE["items"] or (now - _DATA_CACHE["time"] > 300):
+        if os.path.exists(SITEMAP_DATA):
+            try:
+                with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+                    # 按更新时间倒序
+                    raw.sort(key=lambda x: str(x.get("update_time", "0")), reverse=True)
+                    _DATA_CACHE["items"] = raw
+                    _DATA_CACHE["time"] = now
+                    print(f"🌚 [CACHE_LOAD] 已加载 {len(raw)} 条全量数据")
+            except: pass
+    return _DATA_CACHE["items"]
 
 def fetch_single_page(engine, type_id=None, keyword=None, pg=1):
     try:
@@ -98,43 +115,18 @@ def parse_item(item, engine):
         "source_tip": engine.get("tip", "极速")
     }
 
-# 缓存配置
-CACHED_DATA = []
-LAST_LOAD_TIME = 0
-
-def get_full_data():
-    global CACHED_DATA, LAST_LOAD_TIME
-    if not CACHED_DATA or (time.time() - LAST_LOAD_TIME > 60):
-        if os.path.exists(SITEMAP_DATA):
-            try:
-                with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
-                    raw_data = json.load(f)
-                    # 排序逻辑锁死
-                    raw_data.sort(key=lambda x: (str(x.get("update_time", "0")), str(x.get("id", "0"))), reverse=True)
-                    CACHED_DATA = raw_data
-                    LAST_LOAD_TIME = time.time()
-                    print(f"🌚 [CACHE_LOAD] {len(CACHED_DATA)} items")
-            except: pass
-    return CACHED_DATA
+def track_search(q):
+    if not q: return
+    trends = load_json(TRENDS_FILE, {})
+    trends[q] = trends.get(q, 0) + 1
+    sorted_trends = dict(sorted(trends.items(), key=lambda item: item[1], reverse=True)[:100])
+    save_json(TRENDS_FILE, sorted_trends)
 
 @app.get("/api/search")
 def search(request: Request, q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
-    # 🕵️ 大神终极侦探日志
-    raw_query = request.query_params
-    print(f"🌚 [BACKEND DEBUG] RAW_PARAMS: {raw_query}")
-    
-    # 强制尝试强行提取 pg，防止中间层剥离参数
-    try:
-        if "pg" in raw_query:
-            pg = int(raw_query["pg"])
-            print(f"🎯 强行锁定页码: {pg}")
-    except: pass
-
-    # 路径 A：频道浏览
+    # 路径 A：频道/分类浏览 -> 走本地库
     if t and not q:
         all_data = get_full_data()
-        if not all_data: return []
-        
         filtered = []
         seen = set()
         for item in all_data:
@@ -152,26 +144,19 @@ def search(request: Request, q: str = Query(None), t: str = Query(None), pg: int
             if match:
                 new_item = item.copy()
                 new_item["source_name"] = item.get("source", "默认")
-                new_item["source_tip"] = item.get("tip", "HD")
-                # 🧪 水印，证明后端吐了新东西
-                new_item["title"] = f"{title} [P{pg}]"
+                new_item["source_tip"] = item.get("tip", "高清")
                 filtered.append(new_item)
                 seen.add(f"{title}_{cat}")
         
         page_size = 30
         start = (pg - 1) * page_size
-        end = start + page_size
-        results = filtered[start:end]
-        
-        print(f"✅ [REPLY] {t} Pg:{pg} Count:{len(results)} Range:{start}-{end}")
-        
-        return JSONResponse(content=results, headers={
-            "Cache-Control": "no-store, no-cache, must-revalidate",
-            "Pragma": "no-cache"
-        })
+        results = filtered[start:start+page_size]
+        print(f"✅ [API] {t} Pg:{pg} Count:{len(results)}")
+        return results
 
-    # 路径 B：搜索
+    # 路径 B：关键词搜索
     sources = get_active_sources()
+    if q: track_search(q)
     unique_results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(sources))) as executor:
         futures = [executor.submit(fetch_single_page, eng, keyword=q, pg=pg) for eng in sources]
@@ -184,7 +169,13 @@ def search(request: Request, q: str = Query(None), t: str = Query(None), pg: int
 @app.get("/api/latest")
 def get_latest():
     data = get_full_data()
-    return data[:12] if data else []
+    if data:
+        results = data[:12]
+        for item in results:
+            item["source_name"] = item.get("source", "默认")
+            item["source_tip"] = item.get("tip", "高清")
+        return results
+    return []
 
 @app.get("/api/config")
 def get_public_config():

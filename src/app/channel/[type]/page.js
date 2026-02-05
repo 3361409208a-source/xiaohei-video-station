@@ -9,11 +9,8 @@ function ChannelContent({ paramsPromise }) {
   const router = useRouter();
   
   const type = decodeURIComponent(params.type);
-  // 1. 从 URL 严格读取页码，如果不带 pg 参数则默认为 1
-  const pgFromUrl = searchParams.get('pg');
-  const page = parseInt(pgFromUrl || '1');
+  const page = parseInt(searchParams.get('pg') || '1');
   
-  const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '' });
@@ -22,35 +19,46 @@ function ChannelContent({ paramsPromise }) {
     fetch('/api/config').then(res => res.json()).then(data => setConfig(data));
   }, []);
 
-  // 2. 核心：发起带页码的 API 请求
+  // 核心：监听 type 和 page 的变化，发起 API 请求并打印详细日志
   useEffect(() => {
-    setLoading(true);
-    window.scrollTo(0, 0);
-    
-    // 🔥 增加 timestamp 防止任何形式的缓存
-    const apiCall = `/api/search?t=${encodeURIComponent(type)}&pg=${page}&_v=${Date.now()}`;
-    console.log('🌚 [大神核心监控] 当前请求 URL:', apiCall);
+    const fetchData = async () => {
+      setLoading(true);
+      window.scrollTo(0, 0);
+      
+      const apiCall = `/api/search?t=${encodeURIComponent(type)}&pg=${page}&_nocache=${Date.now()}`;
+      console.log(`%c🚀 [REQUEST] 正在搬运第 ${page} 页数据...`, 'color: #38bdf8; font-weight: bold;');
+      console.log(`%c🔗 URL: ${apiCall}`, 'color: #94a3b8;');
 
-    fetch(apiCall, { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => {
-        setResults(data);
-        setLoading(false);
-      })
-      .catch(() => {
+      try {
+        const res = await fetch(apiCall, { cache: 'no-store' });
+        const data = await res.json();
+        
+        if (Array.isArray(data)) {
+          setResults(data);
+          // 打印数据特征，方便在控制台肉眼验证
+          console.log(`%c✅ [RESPONSE] 成功接收到 ${data.length} 条影片`, 'color: #10b981; font-weight: bold;');
+          if (data.length > 0) {
+            console.log('%c🔍 本页首批影片预览:', 'color: #f59e0b;');
+            data.slice(0, 3).forEach((item, i) => {
+              console.log(`   ${i+1}. [ID: ${item.id}] ${item.title}`);
+            });
+          }
+        } else {
+          setResults([]);
+          console.warn('⚠️ [RESPONSE] 返回的数据不是数组格式');
+        }
+      } catch (error) {
+        console.error('❌ [ERROR] 数据请求失败:', error);
         setResults([]);
-        setLoading(false);
-      });
-  }, [type, page]); // 只要页码或分类变了，必须重新 Fetch
+      }
+      setLoading(false);
+    };
 
-  const handleSearch = () => {
-    if (!query.trim()) return;
-    window.location.href = `/?q=${encodeURIComponent(query)}`;
-  };
+    fetchData();
+  }, [type, page]);
 
-  const changePage = (offset) => {
-    const newPage = Math.max(1, page + offset);
-    // 3. 通过 router.push 改变 URL 中的 pg 参数，这会触发上面的 useEffect
+  const goToPage = (newPage) => {
+    if (newPage < 1) return;
     router.push(`/channel/${encodeURIComponent(type)}?pg=${newPage}`);
   };
 
@@ -64,26 +72,31 @@ function ChannelContent({ paramsPromise }) {
             </div>
             <div className="logo-text">小黑<span>搜影</span></div>
           </Link>
+
           <nav className="nav-links">
-            {['首页', '电影', '电视剧', '短剧', '动漫', '综艺', '纪录片'].map(name => (
-              <Link key={name} href={name === '首页' ? '/' : `/channel/${name}`} className={`nav-link ${type === name ? 'active' : ''}`}>
-                {name}
-              </Link>
-            ))}
+            {['首页', '电影', '电视剧', '短剧', '动漫', '综艺', '纪录片'].map(name => {
+              const path = name === '首页' ? '/' : `/channel/${name}`;
+              return (
+                <Link key={name} href={path} className={`nav-link ${type === name ? 'active' : ''}`}>
+                  {name}
+                </Link>
+              );
+            })}
           </nav>
+          <div className="header-right"></div>
         </div>
       </header>
 
       <main className="container" style={{ flex: 1 }}>
         <div className="section-header">
-          <div className="section-title">最新{type} <span style={{color: '#ff4d4f'}}>(第 {page} 页)</span></div>
-          <div className="view-all" style={{ opacity: 0.5 }}>后端已返回 {results.length} 部影片</div>
+          <div className="section-title">最新{type}</div>
+          <div className="view-all" style={{ opacity: 0.5 }}>PAGE {page}</div>
         </div>
 
         {loading ? (
-          <div className="loading-con" style={{ minHeight: '300px' }}>
+          <div className="loading-con">
             <div className="spinner"></div>
-            <div className="loading-text">黑煤球正在从第 {page} 页搬运资源...</div>
+            <div className="loading-text">正在从全量库搬运第 {page} 页数据...</div>
           </div>
         ) : (
           <>
@@ -100,14 +113,14 @@ function ChannelContent({ paramsPromise }) {
               ))}
             </div>
 
-            {results.length > 0 ? (
-              <div className="pagination">
-                <button className="page-btn" disabled={page <= 1} onClick={() => changePage(-1)}>上一页</button>
-                <div className="page-info">当前第 {page} 页</div>
-                <button className="page-btn" onClick={() => changePage(1)}>下一页</button>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '100px 0', opacity: 0.3 }}>该页暂无内容，请点击上一页。</div>
+            <div className="pagination">
+              <button className="page-btn" disabled={page <= 1} onClick={() => goToPage(page - 1)}>上一页</button>
+              <div className="page-info">第 {page} 页</div>
+              <button className="page-btn" disabled={results.length < 30} onClick={() => goToPage(page + 1)}>下一页</button>
+            </div>
+            
+            {results.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '100px 0', opacity: 0.3 }}>该页暂无更多内容</div>
             )}
           </>
         )}

@@ -34,7 +34,8 @@ function HomeContent() {
     if (pg === 1) window.scrollTo({ top: 300, behavior: 'smooth' });
 
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(targetQ)}&pg=${pg}`);
+      // 加上随机指纹，打死缓存
+      const response = await fetch(`/api/search?q=${encodeURIComponent(targetQ)}&pg=${pg}&_ts=${Date.now()}`);
       const data = await response.json();
       setResults(data);
     } catch (error) {
