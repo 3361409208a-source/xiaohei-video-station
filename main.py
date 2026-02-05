@@ -27,11 +27,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 文件路径配置
-CONFIG_FILE = "config.json"
-SOURCES_FILE = "sources.json"
-TRENDS_FILE = "search_trends.json"
-SITEMAP_DATA = "public/sitemap_data.json"
+# 文件路径配置（采用绝对路径，确保后台运行也能找到文件）
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+SOURCES_FILE = os.path.join(BASE_DIR, "sources.json")
+TRENDS_FILE = os.path.join(BASE_DIR, "search_trends.json")
+SITEMAP_DATA = os.path.join(BASE_DIR, "public", "sitemap_data.json")
 ADMIN_PASSWORD = "7897"
 
 def load_json(path, default):
@@ -113,8 +114,11 @@ def track_search(q):
 
 @app.get("/api/search")
 def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
-    # 核心修复：如果是分类查询，优先使用本地全量库
-    if not q and t and os.path.exists(SITEMAP_DATA):
+    # 核心修正：如果是频道/分类查询，强行锁定从本地全量库读，禁止 fallback 到搜索
+    if t and not q:
+        if not os.path.exists(SITEMAP_DATA):
+            return []
+            
         try:
             with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
                 all_data = json.load(f)
@@ -122,10 +126,10 @@ def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
             filtered = []
             seen_titles = set()
             
-            # 先按时间排序，确保分页稳定
-            sorted_all_data = sorted(all_data, key=lambda x: x.get("update_time", ""), reverse=True)
+            # 1. 强制按更新时间倒序排序，解决分页内容重复的问题
+            all_data.sort(key=lambda x: str(x.get("update_time", "")), reverse=True)
             
-            for item in sorted_all_data:
+            for item in all_data:
                 cat = item.get("category", "")
                 title = item.get("title", "")
                 
@@ -137,25 +141,29 @@ def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
                 if t == "短剧":
                     if "短剧" in cat or "短剧" in title: is_match = True
                 elif t == "电视剧":
-                    # 电视剧排除掉短剧，防止重复
+                    # 电视剧排除掉短剧，防止分类比例失衡
                     if ("剧" in cat or "电视" in cat) and "短剧" not in cat and "短剧" not in title:
                         is_match = True
                 elif t in cat:
                     is_match = True
                 
                 if is_match:
+                    # 补齐字段
                     item["source_name"] = item.get("source", "默认源")
                     item["source_tip"] = item.get("tip", "高清")
                     filtered.append(item)
                     seen_titles.add(unique_key)
             
-            page_size = 36
+            # 2. 精准物理切片
+            page_size = 30
             start = (pg - 1) * page_size
             end = start + page_size
             return filtered[start:end]
-        except: pass
+        except Exception as e:
+            print(f"Read sitemap data failed: {e}")
+            return []
 
-    # 如果没有本地库或是在线搜索，走实时接口
+    # 只有带了关键词 q 或者是没有分类 t 时，才走实时搜索聚合接口
     sources = get_active_sources()
     if q: track_search(q)
     

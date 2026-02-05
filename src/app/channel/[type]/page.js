@@ -32,7 +32,7 @@ export default function ChannelPage({ params: paramsPromise }) {
     // 强制滚动到最顶部
     window.scrollTo(0, 0);
     
-    fetch(`/api/search?t=${encodeURIComponent(type)}&pg=${page}`)
+    fetch(`/api/search?t=${encodeURIComponent(type)}&pg=${page}&v=${Date.now()}`)
       .then(res => res.json())
       .then(data => {
         setResults(data);
