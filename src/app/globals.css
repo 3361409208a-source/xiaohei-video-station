@@ -8,6 +8,40 @@
   --header-height: 70px;
 }
 
+/* 主题 2：极客森林 (Emerald Tech) */
+[data-theme='green'] {
+  --primary: #10b981;
+  --bg-main: #050505;
+  --bg-card: #111111;
+  --bg-input: rgba(20, 40, 30, 0.8);
+}
+
+/* 主题 3：深海之影 (Ocean Blue) */
+[data-theme='blue'] {
+  --primary: #3b82f6;
+  --bg-main: #0f172a;
+  --bg-card: #1e293b;
+  --bg-input: rgba(15, 23, 42, 0.8);
+}
+
+/* 主题 4：黑金尊享 (Midnight Gold) */
+[data-theme='gold'] {
+  --primary: #fbbf24;
+  --bg-main: #111111;
+  --bg-card: #1c1c1c;
+  --bg-input: rgba(40, 35, 20, 0.8);
+}
+
+/* 主题 5：初雪之境 (Pure White) */
+[data-theme='white'] {
+  --primary: #e11d48;
+  --bg-main: #f9fafb;
+  --bg-card: #ffffff;
+  --bg-input: rgba(243, 244, 246, 0.8);
+  --text-main: #111827;
+  --text-dim: #4b5563;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -63,19 +97,16 @@ a {
 .logo-area {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   text-decoration: none;
   flex-shrink: 0;
 }
 
-.logo-icon {
+.logo-img {
   width: 36px;
   height: 36px;
-  background: var(--primary);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  object-fit: contain;
+  border-radius: 8px;
 }
 
 .logo-text {
@@ -399,16 +430,10 @@ a {
     display: flex;
     align-items: center;
   }
-  .logo-icon {
-    background: none;
-    width: auto;
-    height: auto;
-    flex-shrink: 0;
-  }
-  .logo-icon svg {
-    width: 24px;
-    height: 24px;
-    fill: var(--primary);
+  .logo-img {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
   }
 
   .search-bar-wrapper {
@@ -459,7 +484,7 @@ a {
   .nav-links::-webkit-scrollbar { display: none; }
   
   .hero-section { padding: 40px 0 20px; }
-  .hero-title { font-size: 2rem; margin-bottom: 20px; letter-spacing: -1px; }
+  .hero-title { font-size: 2.2rem; margin-bottom: 24px; letter-spacing: -1px; }
   
   .movie-grid {
     grid-template-columns: repeat(3, 1fr);

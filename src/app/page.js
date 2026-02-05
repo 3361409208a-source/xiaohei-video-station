@@ -67,22 +67,14 @@ function HomeContent() {
     }
   }, [searchParams]);
 
-  // 大哥指示：移动端最多展示 15 个
   const displayResults = isMobile ? results.slice(0, 15) : results;
 
   return (
-    <div className="page-wrapper" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <div className="page-wrapper">
       <header className="site-header">
         <div className="container header-inner">
-          <Link href="/" className="logo-area" onClick={(e) => {
-            if (window.location.pathname === '/') {
-              e.preventDefault();
-              window.location.reload();
-            }
-          }}>
-            <div className="logo-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"></path></svg>
-            </div>
+          <Link href="/" className="logo-area">
+            <img src="/logo.png" alt="logo" className="logo-img" />
             <div className="logo-text">小黑<span>搜影</span></div>
           </Link>
 

@@ -10,7 +10,7 @@ export default function AdminClient({ initialStats }) {
 
   // 数据状态
   const [collectorStatus, setCollectorStatus] = useState({ log: '', stats: { total: 0, size: '0 MB', last_modified: 'N/A' } });
-  const [siteConfig, setSiteConfig] = useState({ site_name: '', notice: '', footer: '' });
+  const [siteConfig, setSiteConfig] = useState({ site_name: '', notice: '', footer: '', theme: '' });
   const [sources, setSources] = useState([]);
   const [trends, setTrends] = useState({});
   const [currentMovies, setCurrentMovies] = useState([]);
@@ -182,6 +182,25 @@ export default function AdminClient({ initialStats }) {
           <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px', maxWidth: '600px' }}>
             <h3 style={{ marginTop: 0 }}>全局配置</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#94a3b8' }}>全站主题</label>
+                <select 
+                  value={siteConfig.theme || ''} 
+                  onChange={e => {
+                    setSiteConfig({ ...siteConfig, theme: e.target.value });
+                    // 即时在本地预览效果
+                    if (e.target.value) document.documentElement.setAttribute('data-theme', e.target.value);
+                    else document.documentElement.removeAttribute('data-theme');
+                  }}
+                  style={{ width: '100%', padding: '0.8rem', background: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '6px' }}
+                >
+                  <option value="">经典黑粉 (Neon Pink)</option>
+                  <option value="green">极客森林 (Emerald Tech)</option>
+                  <option value="blue">深海之影 (Ocean Blue)</option>
+                  <option value="gold">黑金尊享 (Midnight Gold)</option>
+                  <option value="white">初雪之境 (Pure White)</option>
+                </select>
+              </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', color: '#94a3b8' }}>网站名称</label>
                 <input value={siteConfig.site_name} onChange={e => setSiteConfig({ ...siteConfig, site_name: e.target.value })} style={{ width: '100%', padding: '0.8rem', background: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '6px' }} />

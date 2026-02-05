@@ -54,21 +54,21 @@ def verify_admin(x_admin_token: str = Header(None)):
     if x_admin_token != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-# 内存缓存，大幅提升分页速度
+# 内存缓存
 _DATA_CACHE = {"items": [], "time": 0}
 
 def get_full_data():
+    global _DATA_CACHE
     now = time.time()
     if not _DATA_CACHE["items"] or (now - _DATA_CACHE["time"] > 300):
         if os.path.exists(SITEMAP_DATA):
             try:
                 with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
                     raw = json.load(f)
-                    # 按更新时间倒序
                     raw.sort(key=lambda x: str(x.get("update_time", "0")), reverse=True)
                     _DATA_CACHE["items"] = raw
                     _DATA_CACHE["time"] = now
-                    print(f"🌚 [CACHE_LOAD] 已加载 {len(raw)} 条全量数据")
+                    print(f"🌚 [CACHE_LOAD] Loaded {len(raw)} items")
             except: pass
     return _DATA_CACHE["items"]
 
@@ -124,7 +124,6 @@ def track_search(q):
 
 @app.get("/api/search")
 def search(request: Request, q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
-    # 路径 A：频道/分类浏览 -> 走本地库
     if t and not q:
         all_data = get_full_data()
         filtered = []
@@ -150,11 +149,8 @@ def search(request: Request, q: str = Query(None), t: str = Query(None), pg: int
         
         page_size = 30
         start = (pg - 1) * page_size
-        results = filtered[start:start+page_size]
-        print(f"✅ [API] {t} Pg:{pg} Count:{len(results)}")
-        return results
+        return filtered[start:start+page_size]
 
-    # 路径 B：关键词搜索
     sources = get_active_sources()
     if q: track_search(q)
     unique_results = {}
@@ -180,7 +176,12 @@ def get_latest():
 @app.get("/api/config")
 def get_public_config():
     cfg = load_json(CONFIG_FILE, {})
-    return {"site_name": cfg.get("site_name", "🐾 小黑搜影"), "notice": cfg.get("notice", ""), "footer": cfg.get("footer", "© 2026")}
+    return {
+        "site_name": cfg.get("site_name", "🐾 小黑搜影"), 
+        "notice": cfg.get("notice", ""), 
+        "footer": cfg.get("footer", "© 2026"),
+        "theme": cfg.get("theme", "")
+    }
 
 @app.get("/api/detail")
 def get_detail(id: str, src: str):
@@ -204,16 +205,56 @@ def get_detail(id: str, src: str):
     except: pass
     return None
 
+# --- 管理接口 ---
+
 @app.get("/api/admin/collector-status")
 def get_collector_status(x_admin_token: str = Header(None)):
     verify_admin(x_admin_token)
-    return {"stats": {"total": len(get_full_data())}}
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    log_path = os.path.join(base_dir, "collector.log")
+    data_path = os.path.join(base_dir, "public", "sitemap_data.json")
+    log_content = ""
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                log_content = "".join(lines[-100:])
+        except: pass
+    data_stats = {"total": len(get_full_data()), "size": f"{os.stat(data_path).st_size/1024/1024:.2f} MB" if os.path.exists(data_path) else "0 MB"}
+    return {"log": log_content, "stats": data_stats}
 
 @app.post("/api/admin/trigger-collector")
 def trigger_collector(x_admin_token: str = Header(None)):
     verify_admin(x_admin_token)
     subprocess.Popen([sys.executable, "build_sitemap_data.py"])
     return {"status": "success"}
+
+@app.get("/api/admin/config")
+def get_config(x_admin_token: str = Header(None)):
+    verify_admin(x_admin_token)
+    return load_json(CONFIG_FILE, {})
+
+@app.post("/api/admin/config")
+def save_config(data: dict = Body(...), x_admin_token: str = Header(None)):
+    verify_admin(x_admin_token)
+    save_json(CONFIG_FILE, data)
+    return {"status": "success"}
+
+@app.get("/api/admin/sources")
+def get_sources(x_admin_token: str = Header(None)):
+    verify_admin(x_admin_token)
+    return load_json(SOURCES_FILE, [])
+
+@app.post("/api/admin/sources")
+def save_sources(data: list = Body(...), x_admin_token: str = Header(None)):
+    verify_admin(x_admin_token)
+    save_json(SOURCES_FILE, data)
+    return {"status": "success"}
+
+@app.get("/api/admin/trends")
+def get_trends(x_admin_token: str = Header(None)):
+    verify_admin(x_admin_token)
+    return load_json(TRENDS_FILE, {})
 
 @app.get("/api/sitemap-info")
 def get_sitemap_info():

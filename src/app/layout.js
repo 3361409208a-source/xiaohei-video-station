@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
+import ThemeInitializer from "./ThemeInitializer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,13 +14,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-// ... 保持原有 metadata 不变
+  title: "小黑搜影 - 极致高效全网聚合视频站",
+  description: "发现属于你的精彩世界",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        <ThemeInitializer />
         {children}
         <Analytics />
       </body>
