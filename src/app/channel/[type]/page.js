@@ -9,36 +9,27 @@ function ChannelContent({ paramsPromise }) {
   const router = useRouter();
   
   const type = decodeURIComponent(params.type);
-  // 核心核心核心：强制从 URL 的 pg 参数中读取页码，这是唯一真理
-  const urlPg = searchParams.get('pg');
-  const page = parseInt(urlPg || '1');
+  // 1. 从 URL 严格读取页码，如果不带 pg 参数则默认为 1
+  const pgFromUrl = searchParams.get('pg');
+  const page = parseInt(pgFromUrl || '1');
   
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '' });
 
-  const categories = [
-    { name: '首页', path: '/' },
-    { name: '电影', path: '/channel/电影' },
-    { name: '电视剧', path: '/channel/电视剧' },
-    { name: '短剧', path: '/channel/短剧' },
-    { name: '动漫', path: '/channel/动漫' },
-    { name: '综艺', path: '/channel/综艺' },
-    { name: '纪录片', path: '/channel/纪录片' }
-  ];
-
   useEffect(() => {
     fetch('/api/config').then(res => res.json()).then(data => setConfig(data));
   }, []);
 
+  // 2. 核心：发起带页码的 API 请求
   useEffect(() => {
     setLoading(true);
     window.scrollTo(0, 0);
     
-    // 加上时间戳和显式的 pg 参数，打死缓存
-    const apiCall = `/api/search?t=${encodeURIComponent(type)}&pg=${page}&v=${Date.now()}`;
-    console.log('🌚 [CLIENT DEBUG] 发起 API 请求:', apiCall);
+    // 🔥 增加 timestamp 防止任何形式的缓存
+    const apiCall = `/api/search?t=${encodeURIComponent(type)}&pg=${page}&_v=${Date.now()}`;
+    console.log('🌚 [大神核心监控] 当前请求 URL:', apiCall);
 
     fetch(apiCall, { cache: 'no-store' })
       .then(res => res.json())
@@ -50,7 +41,7 @@ function ChannelContent({ paramsPromise }) {
         setResults([]);
         setLoading(false);
       });
-  }, [type, page]); // 只要 type 或 URL 里的 page 变了，必触发请求
+  }, [type, page]); // 只要页码或分类变了，必须重新 Fetch
 
   const handleSearch = () => {
     if (!query.trim()) return;
@@ -59,12 +50,8 @@ function ChannelContent({ paramsPromise }) {
 
   const changePage = (offset) => {
     const newPage = Math.max(1, page + offset);
-    // 改变 URL 路径是最高效的触发重新渲染的方式
+    // 3. 通过 router.push 改变 URL 中的 pg 参数，这会触发上面的 useEffect
     router.push(`/channel/${encodeURIComponent(type)}?pg=${newPage}`);
-  };
-
-  const forceRefresh = () => {
-    window.location.reload();
   };
 
   return (
@@ -77,60 +64,26 @@ function ChannelContent({ paramsPromise }) {
             </div>
             <div className="logo-text">小黑<span>搜影</span></div>
           </Link>
-
           <nav className="nav-links">
-            {categories.map(cat => (
-              <Link key={cat.name} href={cat.path} className={`nav-link ${type === cat.name ? 'active' : ''}`}>
-                {cat.name}
+            {['首页', '电影', '电视剧', '短剧', '动漫', '综艺', '纪录片'].map(name => (
+              <Link key={name} href={name === '首页' ? '/' : `/channel/${name}`} className={`nav-link ${type === name ? 'active' : ''}`}>
+                {name}
               </Link>
             ))}
           </nav>
-          <div className="header-right"></div>
         </div>
       </header>
 
-      <section className="hero-section" style={{ padding: '40px 0 20px' }}>
-        <div className="container">
-          <div className="search-container">
-            <div className="search-bar-wrapper">
-              <div className="search-icon-left">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              </div>
-              <input 
-                type="text" 
-                className="search-input" 
-                value={query} 
-                onChange={(e) => setQuery(e.target.value)} 
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()} 
-                placeholder={`在 ${type} 频道中搜索...`} 
-              />
-              <button className="search-btn" onClick={handleSearch}>搜 索</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <main className="container" style={{ flex: 1 }}>
-        <div className="section-header" style={{ alignItems: 'flex-end' }}>
-          <div>
-            <div className="section-title">最新{type} <span style={{fontSize: '14px', color: '#ff4d4f', fontWeight: 'bold'}}>(第 {page} 页)</span></div>
-            <div style={{ fontSize: '12px', opacity: 0.5, marginTop: '5px' }}>如果内容未更新，请尝试【暴力刷新】</div>
-          </div>
-          <button onClick={forceRefresh} style={{ 
-            padding: '6px 12px', 
-            fontSize: '12px', 
-            backgroundColor: '#333', 
-            color: '#eee', 
-            border: 'none', 
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}>暴力刷新数据</button>
+        <div className="section-header">
+          <div className="section-title">最新{type} <span style={{color: '#ff4d4f'}}>(第 {page} 页)</span></div>
+          <div className="view-all" style={{ opacity: 0.5 }}>后端已返回 {results.length} 部影片</div>
         </div>
 
         {loading ? (
           <div className="loading-con" style={{ minHeight: '300px' }}>
             <div className="spinner"></div>
-            <div className="loading-text">黑煤球正在从后端【第 {page} 页】搬运数据...</div>
+            <div className="loading-text">黑煤球正在从第 {page} 页搬运资源...</div>
           </div>
         ) : (
           <>
@@ -150,14 +103,11 @@ function ChannelContent({ paramsPromise }) {
             {results.length > 0 ? (
               <div className="pagination">
                 <button className="page-btn" disabled={page <= 1} onClick={() => changePage(-1)}>上一页</button>
-                <div className="page-info">第 {page} 页</div>
+                <div className="page-info">当前第 {page} 页</div>
                 <button className="page-btn" onClick={() => changePage(1)}>下一页</button>
               </div>
             ) : (
-              <div style={{ textAlign: 'center', padding: '100px 0', opacity: 0.3 }}>
-                <h3>该页暂无内容</h3>
-                <p>可能是网络波动，请尝试【暴力刷新】</p>
-              </div>
+              <div style={{ textAlign: 'center', padding: '100px 0', opacity: 0.3 }}>该页暂无内容，请点击上一页。</div>
             )}
           </>
         )}

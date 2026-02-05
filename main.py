@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query, Header, HTTPException, Body
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 import os
@@ -27,12 +27,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 文件路径配置（采用绝对路径，确保后台运行也能找到文件）
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
-SOURCES_FILE = os.path.join(BASE_DIR, "sources.json")
-TRENDS_FILE = os.path.join(BASE_DIR, "search_trends.json")
-SITEMAP_DATA = os.path.join(BASE_DIR, "public", "sitemap_data.json")
+# 文件路径配置
+CONFIG_FILE = "config.json"
+SOURCES_FILE = "sources.json"
+TRENDS_FILE = "search_trends.json"
+SITEMAP_DATA = "public/sitemap_data.json"
 ADMIN_PASSWORD = "7897"
 
 def load_json(path, default):
@@ -54,6 +53,21 @@ def get_active_sources():
 def verify_admin(x_admin_token: str = Header(None)):
     if x_admin_token != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+# 缓存全量数据，减少磁盘 IO
+_DATA_CACHE = {"items": [], "time": 0}
+
+def get_full_data():
+    now = time.time()
+    if not _DATA_CACHE["items"] or (now - _DATA_CACHE["time"] > 300):
+        if os.path.exists(SITEMAP_DATA):
+            try:
+                with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
+                    _DATA_CACHE["items"] = json.load(f)
+                    _DATA_CACHE["time"] = now
+                    print(f"🌚 [CACHE_LOAD] Loaded {len(_DATA_CACHE['items'])} items")
+            except: pass
+    return _DATA_CACHE["items"]
 
 def fetch_single_page(engine, type_id=None, keyword=None, pg=1):
     try:
@@ -98,13 +112,6 @@ def parse_item(item, engine):
         "source_tip": engine.get("tip", "极速")
     }
 
-SUB_CATEGORIES = {
-    "电影": [6, 7, 8, 9, 10, 11, 12, 20], 
-    "电视剧": [13, 14, 15, 16, 21, 22, 23, 24], 
-    "综艺": [25, 26, 27, 28],
-    "动漫": [29, 30, 31, 32, 33]
-}
-
 def track_search(q):
     if not q: return
     trends = load_json(TRENDS_FILE, {})
@@ -112,31 +119,8 @@ def track_search(q):
     sorted_trends = dict(sorted(trends.items(), key=lambda item: item[1], reverse=True)[:100])
     save_json(TRENDS_FILE, sorted_trends)
 
-# 全局内存缓存，防止频繁读取大文件导致性能问题
-CACHED_DATA = []
-LAST_LOAD_TIME = 0
-
-def get_full_data():
-    global CACHED_DATA, LAST_LOAD_TIME
-    # 强制每 1 分钟检查一次文件更新
-    if not CACHED_DATA or (time.time() - LAST_LOAD_TIME > 60):
-        if os.path.exists(SITEMAP_DATA):
-            try:
-                with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
-                    raw_data = json.load(f)
-                    # 在内存中完成排序，确保后续切片稳定
-                    raw_data.sort(key=lambda x: (str(x.get("update_time", "0000-00-00")), str(x.get("id", "0"))), reverse=True)
-                    CACHED_DATA = raw_data
-                    LAST_LOAD_TIME = time.time()
-                    print(f"🌚 [CACHE_LOAD] Loaded {len(CACHED_DATA)} items")
-            except Exception as e:
-                print(f"🌚 [CACHE_ERROR] {e}")
-    return CACHED_DATA
-
 @app.get("/api/search")
 def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
-    from fastapi.responses import JSONResponse
-    # ⚠️ 大神级实时监控：看看到底收到页码没！
     print(f"🌚 [DEBUG] REQUEST RECEIVED: t={t}, q={q}, pg={pg}")
     
     # 路径 A：频道/分类浏览 -> 强制走本地缓存库
@@ -158,21 +142,25 @@ def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
             if unique_key in seen_titles: continue
             
             is_match = False
+            # 强化分类逻辑
             if t == "短剧":
                 if "短剧" in cat or "短剧" in title: is_match = True
             elif t == "电视剧":
+                # 排除掉短剧，剩下的带“剧”字或“电视”的归入电视剧
                 if ("剧" in cat or "电视" in cat) and "短剧" not in cat and "短剧" not in title:
                     is_match = True
+            elif t == "动漫":
+                if "动漫" in cat or "动画" in cat: is_match = True
+            elif t == "电影":
+                if "电影" in cat or "片" in cat: is_match = True
             elif t in cat:
                 is_match = True
             
             if is_match:
-                # 显式拷贝，防止污染缓存
+                # 显式拷贝并补齐字段
                 new_item = item.copy()
                 new_item["source_name"] = item.get("source", "默认源")
                 new_item["source_tip"] = item.get("tip", "高清")
-                # 注入调试信息
-                new_item["_dbg_pg"] = pg
                 filtered.append(new_item)
                 seen_titles.add(unique_key)
         
@@ -182,12 +170,7 @@ def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
         end = start + page_size
         results = filtered[start:end]
         
-        # 🧪 [超级调试]：给标题加上页码水印，如果是第 2 页，标题后面会显示 [P2]
-        # 这能彻底验证后端到底给没给你返回新数据
-        for item in results:
-            item["title"] = f"{item['title']} [P{pg}]"
-        
-        print(f"✅ [CHANNEL] {t} Pg:{pg} Range:{start}-{end} FirstTitle:{results[0]['title'] if results else 'Empty'}")
+        print(f"✅ [CHANNEL] {t} Pg:{pg} Range:{start}-{end} ResultsCount:{len(results)}")
         
         return JSONResponse(content=results, headers={
             "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate",
@@ -197,17 +180,11 @@ def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
 
     # 路径 B：关键词搜索 -> 走实时聚合接口
     sources = get_active_sources()
-    type_id = None
-    if t:
-        # 尝试匹配子分类 ID（如电影=1, 电视剧=2 等，根据 Maccms 标准）
-        mapping = {"电影": 1, "电视剧": 2, "综艺": 3, "动漫": 4}
-        type_id = mapping.get(t)
     if q: track_search(q)
     
     unique_results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(sources))) as executor:
-        # 注意：此处 fetch_single_page 的 pg 参数必须传递
-        futures = [executor.submit(fetch_single_page, eng, type_id=None, keyword=q, pg=pg) for eng in sources]
+        futures = [executor.submit(fetch_single_page, eng, keyword=q, pg=pg) for eng in sources]
         for future in concurrent.futures.as_completed(futures):
             for item in future.result():
                 key = item['title']
@@ -217,28 +194,15 @@ def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
 
 @app.get("/api/latest")
 def get_latest():
-    # 首页推荐直接从本地库取最新的
-    if os.path.exists(SITEMAP_DATA):
-        try:
-            with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                results = data[:12]
-                for item in results:
-                    item["source_name"] = item.get("source", "默认源")
-                    item["source_tip"] = item.get("tip", "高清")
-                return results
-        except: pass
-    
-    sources = get_active_sources()
-    results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(sources)) as executor:
-        futures = [executor.submit(fetch_single_page, eng, pg=1) for eng in sources]
-        for future in concurrent.futures.as_completed(futures):
-            results.extend(future.result())
-    unique_results = {}
-    for item in results:
-        if item['title'] not in unique_results: unique_results[item['title']] = item
-    return list(unique_results.values())[:12]
+    # 首页推荐直接从本地库取前 12 个最新的
+    data = get_full_data()
+    if data:
+        results = data[:12]
+        for item in results:
+            item["source_name"] = item.get("source", "默认源")
+            item["source_tip"] = item.get("tip", "高清")
+        return results
+    return []
 
 @app.get("/api/config")
 def get_public_config():
@@ -352,45 +316,23 @@ def get_trends(x_admin_token: str = Header(None)):
 
 @app.get("/api/sitemap-info")
 def get_sitemap_info():
-    """返回全量数据的统计信息，供 Next.js 计算分卷"""
-    if os.path.exists(SITEMAP_DATA):
-        try:
-            with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return {"total": len(data), "chunk_size": 5000}
-        except: pass
-    return {"total": 0, "chunk_size": 5000}
+    data = get_full_data()
+    return {"total": len(data), "chunk_size": 5000}
 
 @app.get("/api/sitemap-raw")
 def get_sitemap_raw(chunk: int = Query(None)):
-    """按需返回 Sitemap 原始数据，支持分页/分卷以节省带宽"""
-    if not os.path.exists(SITEMAP_DATA):
-        return []
-        
-    try:
-        with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
-            all_data = json.load(f)
-            
-        if chunk is None:
-            # 如果不传参数，返回前 2000 条作为最新卷
-            return all_data[:2000]
-        
-        # 返回指定分卷（每卷 5000 条）
-        if chunk == 0:
-            return all_data[:2000]
-            
-        start = (chunk - 1) * 5000
-        end = start + 5000
-        return all_data[start:end]
-    except:
-        return []
+    all_data = get_full_data()
+    if not all_data: return []
+    if chunk is None: return all_data[:2000]
+    if chunk == 0: return all_data[:2000]
+    start = (chunk - 1) * 5000
+    end = start + 5000
+    return all_data[start:end]
 
 @app.on_event("startup")
 async def startup_event():
-    """服务启动时，自动在后台开启一轮全量采集"""
     print("🌚 大神提醒：服务已启动，正在后台自动同步 5 万条全量索引...")
     try:
-        # 使用 Popen 启动，不阻塞主进程启动速度
         subprocess.Popen([sys.executable, "build_sitemap_data.py"])
     except Exception as e:
         print(f"Startup collector failed: {e}")
