@@ -16,6 +16,7 @@ function HomeContent() {
     { name: '首页', path: '/', active: true },
     { name: '电影', path: '/channel/电影' },
     { name: '电视剧', path: '/channel/电视剧' },
+    { name: '短剧', path: '/channel/短剧' },
     { name: '动漫', path: '/channel/动漫' },
     { name: '综艺', path: '/channel/综艺' },
     { name: '纪录片', path: '/channel/纪录片' }

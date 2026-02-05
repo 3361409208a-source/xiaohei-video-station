@@ -120,14 +120,34 @@ def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
                 all_data = json.load(f)
             
             filtered = []
-            for item in all_data:
+            seen_titles = set()
+            
+            # 先按时间排序，确保分页稳定
+            sorted_all_data = sorted(all_data, key=lambda x: x.get("update_time", ""), reverse=True)
+            
+            for item in sorted_all_data:
                 cat = item.get("category", "")
-                # 兼容老的 JSON 格式并补齐字段
-                if t in cat or (t == "电影" and "电影" in cat) or (t == "电视剧" and ("剧" in cat or "电视" in cat)):
-                    # 确保前端需要的字段都存在
+                title = item.get("title", "")
+                
+                # 唯一性校验（标题 + 类别）
+                unique_key = f"{title}_{cat}"
+                if unique_key in seen_titles: continue
+                
+                is_match = False
+                if t == "短剧":
+                    if "短剧" in cat or "短剧" in title: is_match = True
+                elif t == "电视剧":
+                    # 电视剧排除掉短剧，防止重复
+                    if ("剧" in cat or "电视" in cat) and "短剧" not in cat and "短剧" not in title:
+                        is_match = True
+                elif t in cat:
+                    is_match = True
+                
+                if is_match:
                     item["source_name"] = item.get("source", "默认源")
                     item["source_tip"] = item.get("tip", "高清")
                     filtered.append(item)
+                    seen_titles.add(unique_key)
             
             page_size = 36
             start = (pg - 1) * page_size
