@@ -34,9 +34,13 @@ function ChannelContent({ paramsPromise }) {
     setLoading(true);
     window.scrollTo(0, 0);
     
-    // 采用 URL 驱动的分页，并强制拉取最新数据
-    fetch(`/api/search?t=${encodeURIComponent(type)}&pg=${page}&v=${Date.now()}`, {
-      cache: 'no-store'
+    // 采用 URL 驱动的分页，并强行打桩验证
+    const fetchUrl = `/api/search?t=${encodeURIComponent(type)}&pg=${page}&cache_bust=${Date.now()}`;
+    console.log('🌚 黑煤球正在请求:', fetchUrl);
+    
+    fetch(fetchUrl, {
+      cache: 'no-store',
+      headers: { 'Pragma': 'no-cache' }
     })
       .then(res => res.json())
       .then(data => {
