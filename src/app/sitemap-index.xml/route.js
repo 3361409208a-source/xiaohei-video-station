@@ -13,9 +13,9 @@ export async function GET() {
     const totalChunks = Math.ceil(info.total / 5000);
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
-    // 修改为美化后的路径
     for (let i = 0; i <= totalChunks; i++) {
-      xml += `  <sitemap>\n    <loc>${baseUrl}/sitemap-${i}.xml</loc>\n  </sitemap>\n`;
+      // 指向具有 .xml 后缀的路径，更受 Google 欢迎
+      xml += `  <sitemap>\n    <loc>${baseUrl}/sitemap/${i}.xml</loc>\n  </sitemap>\n`;
     }
     xml += `</sitemapindex>`;
 
