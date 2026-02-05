@@ -5,26 +5,18 @@ import os
 import concurrent.futures
 from urllib.parse import quote
 
-# 资源配置
-SOURCES = [
-    {"name": "量子高清", "api": "https://cj.lziapi.com/api.php/provide/vod/from/lzm3u8/at/json/"},
-    {"name": "飞飞资源", "api": "https://www.ffzyapi.com/api.php/provide/vod/from/ffm3u8/at/json/"},
-    {"name": "红牛专线", "api": "https://www.hongniuzy2.com/api.php/provide/vod/from/hnm3u8/at/json/"},
-    {"name": "索尼资源", "api": "https://suoniapi.com/api.php/provide/vod/from/snm3u8/at/json/"}
-]
-
 # 保存路径
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SAVE_PATH = os.path.join(BASE_DIR, "public", "sitemap_data.json")
+SOURCES_FILE = os.path.join(BASE_DIR, "sources.json")
 
 def log(msg):
-    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "collector.log")
+    log_path = os.path.join(BASE_DIR, "collector.log")
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(f"{msg}\n")
         f.flush()
 
 def fetch_page(engine, page):
-    """Fetch latest data using ac=detail"""
     try:
         api_url = f"{engine['api']}?ac=detail&pg={page}"
         res = requests.get(api_url, timeout=10)
@@ -34,17 +26,24 @@ def fetch_page(engine, page):
         return []
 
 def run_collector(max_pages_per_source=1000):
+    # 动态加载源
+    if os.path.exists(SOURCES_FILE):
+        with open(SOURCES_FILE, "r", encoding="utf-8") as f:
+            all_sources = json.load(f)
+            sources = [s for s in all_sources if s.get("active", True)]
+    else:
+        log("Error: sources.json not found")
+        return
+
     all_movies = {}
-    log("--- Starting Full Collection (Optimized) ---")
+    log("--- Starting Dynamic Collection ---")
     
-    for idx, engine in enumerate(SOURCES):
-        log(f"Processing Source {idx}: {engine['name']}")
+    for idx, engine in enumerate(sources):
+        log(f"Processing Source: {engine['name']}")
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
             for batch_start in range(1, max_pages_per_source + 1, 100):
                 batch_end = min(batch_start + 100, max_pages_per_source + 1)
-                log(f"  Fetching pages {batch_start} to {batch_end-1}...")
-                
                 futures = [executor.submit(fetch_page, engine, p) for p in range(batch_start, batch_end)]
                 
                 source_new_count = 0
@@ -58,12 +57,13 @@ def run_collector(max_pages_per_source=1000):
                                 all_movies[title] = {
                                     "id": str(vod_id),
                                     "title": title,
+                                    "poster": item.get("vod_pic", ""),
                                     "source": engine['name'],
-                                    "category": item.get("type_name", "影视"), # 增加分类信息
+                                    "category": item.get("type_name", "影视"),
                                     "update_time": item.get("vod_time")
                                 }
                                 source_new_count += 1
-                log(f"    Added {source_new_count} new unique items in this batch.")
+                log(f"  Batch done. Added {source_new_count} unique items.")
                 time.sleep(0.5)
                 
         log(f"Current total unique items: {len(all_movies)}")
@@ -79,7 +79,6 @@ def run_collector(max_pages_per_source=1000):
         json.dump(movie_list, f, ensure_ascii=False, indent=2)
     
     log(f"Done! Final unique items: {len(movie_list)}")
-    log(f"File saved to: {SAVE_PATH}")
 
 if __name__ == "__main__":
     run_collector(max_pages_per_source=1000)

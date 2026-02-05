@@ -2,13 +2,10 @@ export async function generateSitemaps() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://xiaohei-video-station-production.up.railway.app';
   
   try {
-    // 仅请求统计信息，不需要全量下载 11MB
     const res = await fetch(`${API_URL}/api/sitemap-info`, { next: { revalidate: 3600 } });
     if (!res.ok) return [{ id: 0 }];
-    
     const info = await res.json();
-    const totalChunks = Math.ceil(info.total / info.chunk_size);
-    
+    const totalChunks = Math.ceil(info.total / 5000);
     const sitemaps = [{ id: 0 }];
     for (let i = 1; i <= totalChunks; i++) {
       sitemaps.push({ id: i });
@@ -24,14 +21,12 @@ export default async function sitemap({ id }) {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://xiaohei-video-station-production.up.railway.app';
 
   try {
-    // 按需请求指定分卷（约 1MB），大大降低 Vercel 负担
     const res = await fetch(`${API_URL}/api/sitemap-raw?chunk=${id}`, { next: { revalidate: 3600 } });
     if (!res.ok) return [];
-    
     const movies = await res.json();
 
     return movies.map((movie) => ({
-      url: `${baseUrl}/movie/${encodeURIComponent(`${movie.title}-${movie.id}`)}?src=${encodeURIComponent(movie.source)}`,
+      url: `${baseUrl}/movie/${encodeURIComponent(`${movie.title}-${movie.id}`)}?src=${encodeURIComponent(movie.source || '默认')}`,
       lastModified: new Date(movie.update_time || Date.now()),
       changeFrequency: id === 0 ? 'daily' : 'weekly',
       priority: id === 0 ? 1.0 : 0.5,

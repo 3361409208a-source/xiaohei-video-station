@@ -1,0 +1,294 @@
+Starting collection...
+Collecting category: Movie
+  Source index: 0
+    Page 10 done...
+    Page 20 done...
+    Page 30 done...
+    Page 40 done...
+Starting collection...
+Collecting category: Movie
+  Source index: 0
+    Processed 20 pages...
+    Processed 40 pages...
+    Processed 60 pages...
+    Processed 80 pages...
+    Processed 100 pages...
+  Source index: 1
+    Processed 20 pages...
+    Processed 40 pages...
+    Processed 60 pages...
+    Processed 80 pages...
+    Processed 100 pages...
+  Source index: 2
+    Processed 20 pages...
+    Processed 40 pages...
+    Processed 60 pages...
+    Processed 80 pages...
+    Processed 100 pages...
+  Source index: 3
+    Processed 20 pages...
+    Processed 40 pages...
+    Processed 60 pages...
+    Processed 80 pages...
+    Processed 100 pages...
+Current unique items: 3
+Collecting category: TV
+  Source index: 0
+    Processed 20 pages...
+    Processed 40 pages...
+    Processed 60 pages...
+    Processed 80 pages...
+    Processed 100 pages...
+  Source index: 1
+    Processed 20 pages...
+    Processed 40 pages...
+    Processed 60 pages...
+    Processed 80 pages...
+    Processed 100 pages...
+  Source index: 2
+    Processed 20 pages...
+    Processed 40 pages...
+    Processed 60 pages...
+    Processed 80 pages...
+    Processed 100 pages...
+  Source index: 3
+    Processed 20 pages...
+    Processed 40 pages...
+--- Starting New Collection ---
+Processing category: Movie
+  Source 0 (量子高清)
+    Added 1 new unique items from this source.
+  Source 1 (飞飞资源)
+    Added 0 new unique items from this source.
+  Source 2 (红牛专线)
+    Added 2 new unique items from this source.
+  Source 3 (索尼资源)
+    Added 0 new unique items from this source.
+Total unique items so far: 3
+Processing category: TV
+  Source 0 (量子高清)
+    Added 3 new unique items from this source.
+  Source 1 (飞飞资源)
+--- Starting Full Collection (All Categories) ---
+Processing Source 0: 量子高清
+  Fetching pages 1 to 100...
+    Added 2000 new unique items in this batch.
+  Fetching pages 101 to 200...
+    Added 2000 new unique items in this batch.
+  Fetching pages 201 to 300...
+    Added 2000 new unique items in this batch.
+  Fetching pages 301 to 400...
+    Added 2000 new unique items in this batch.
+  Fetching pages 401 to 500...
+    Added 2000 new unique items in this batch.
+  Fetching pages 501 to 600...
+    Added 2000 new unique items in this batch.
+  Fetching pages 601 to 700...
+    Added 2000 new unique items in this batch.
+  Fetching pages 701 to 800...
+    Added 2000 new unique items in this batch.
+  Fetching pages 801 to 900...
+    Added 2000 new unique items in this batch.
+  Fetching pages 901 to 1000...
+    Added 2000 new unique items in this batch.
+Current total unique items: 20000
+Processing Source 1: 飞飞资源
+  Fetching pages 1 to 100...
+    Added 0 new unique items in this batch.
+  Fetching pages 101 to 200...
+    Added 0 new unique items in this batch.
+  Fetching pages 201 to 300...
+    Added 0 new unique items in this batch.
+  Fetching pages 301 to 400...
+    Added 0 new unique items in this batch.
+  Fetching pages 401 to 500...
+    Added 0 new unique items in this batch.
+  Fetching pages 501 to 600...
+    Added 0 new unique items in this batch.
+  Fetching pages 601 to 700...
+    Added 0 new unique items in this batch.
+  Fetching pages 701 to 800...
+    Added 0 new unique items in this batch.
+  Fetching pages 801 to 900...
+    Added 0 new unique items in this batch.
+  Fetching pages 901 to 1000...
+    Added 0 new unique items in this batch.
+Current total unique items: 20000
+Processing Source 2: 红牛专线
+  Fetching pages 1 to 100...
+    Added 804 new unique items in this batch.
+  Fetching pages 101 to 200...
+    Added 920 new unique items in this batch.
+  Fetching pages 201 to 300...
+    Added 814 new unique items in this batch.
+  Fetching pages 301 to 400...
+    Added 900 new unique items in this batch.
+  Fetching pages 401 to 500...
+    Added 1101 new unique items in this batch.
+  Fetching pages 501 to 600...
+    Added 757 new unique items in this batch.
+  Fetching pages 601 to 700...
+    Added 1106 new unique items in this batch.
+  Fetching pages 701 to 800...
+    Added 1958 new unique items in this batch.
+  Fetching pages 801 to 900...
+    Added 1970 new unique items in this batch.
+  Fetching pages 901 to 1000...
+    Added 1967 new unique items in this batch.
+Current total unique items: 32297
+Processing Source 3: 索尼资源
+  Fetching pages 1 to 100...
+    Added 774 new unique items in this batch.
+  Fetching pages 101 to 200...
+    Added 1147 new unique items in this batch.
+  Fetching pages 201 to 300...
+    Added 832 new unique items in this batch.
+  Fetching pages 301 to 400...
+    Added 613 new unique items in this batch.
+  Fetching pages 401 to 500...
+    Added 604 new unique items in this batch.
+  Fetching pages 501 to 600...
+    Added 691 new unique items in this batch.
+  Fetching pages 601 to 700...
+    Added 751 new unique items in this batch.
+  Fetching pages 701 to 800...
+    Added 816 new unique items in this batch.
+  Fetching pages 801 to 900...
+    Added 920 new unique items in this batch.
+  Fetching pages 901 to 1000...
+    Added 1024 new unique items in this batch.
+Current total unique items: 40469
+Done! Final unique items: 40469
+File saved to: public/sitemap_data.json
+--- Starting Dynamic Collection ---
+Processing Source: 量子高清
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+Current total unique items: 20000
+Processing Source: 飞飞资源
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+Current total unique items: 20000
+Processing Source: 红牛专线
+  Batch done. Added 807 unique items.
+  Batch done. Added 920 unique items.
+  Batch done. Added 814 unique items.
+  Batch done. Added 897 unique items.
+  Batch done. Added 1102 unique items.
+  Batch done. Added 760 unique items.
+  Batch done. Added 1102 unique items.
+  Batch done. Added 1958 unique items.
+  Batch done. Added 1970 unique items.
+  Batch done. Added 1968 unique items.
+Current total unique items: 32298
+Processing Source: 索尼资源
+  Batch done. Added 770 unique items.
+  Batch done. Added 1147 unique items.
+  Batch done. Added 832 unique items.
+  Batch done. Added 613 unique items.
+  Batch done. Added 604 unique items.
+  Batch done. Added 691 unique items.
+  Batch done. Added 751 unique items.
+  Batch done. Added 816 unique items.
+  Batch done. Added 920 unique items.
+  Batch done. Added 1024 unique items.
+Current total unique items: 40466
+Done! Final unique items: 40466
+--- Starting Dynamic Collection ---
+Processing Source: 量子高清
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+Current total unique items: 20000
+Processing Source: 飞飞资源
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+Current total unique items: 20000
+Processing Source: 红牛专线
+  Batch done. Added 808 unique items.
+  Batch done. Added 920 unique items.
+  Batch done. Added 814 unique items.
+  Batch done. Added 897 unique items.
+  Batch done. Added 1101 unique items.
+  Batch done. Added 761 unique items.
+  Batch done. Added 1101 unique items.
+  Batch done. Added 1958 unique items.
+  Batch done. Added 1970 unique items.
+  Batch done. Added 1968 unique items.
+Current total unique items: 32298
+Processing Source: 索尼资源
+  Batch done. Added 769 unique items.
+  Batch done. Added 1147 unique items.
+  Batch done. Added 832 unique items.
+  Batch done. Added 613 unique items.
+  Batch done. Added 604 unique items.
+  Batch done. Added 691 unique items.
+  Batch done. Added 751 unique items.
+  Batch done. Added 816 unique items.
+  Batch done. Added 920 unique items.
+  Batch done. Added 1024 unique items.
+Current total unique items: 40465
+Done! Final unique items: 40465
+--- Starting Dynamic Collection ---
+Processing Source: 量子高清
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+  Batch done. Added 2000 unique items.
+Current total unique items: 20000
+Processing Source: 飞飞资源
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+  Batch done. Added 0 unique items.
+Current total unique items: 20000
+Processing Source: 红牛专线
+  Batch done. Added 809 unique items.
+  Batch done. Added 919 unique items.
+  Batch done. Added 816 unique items.
+  Batch done. Added 898 unique items.
+  Batch done. Added 1100 unique items.
+  Batch done. Added 762 unique items.

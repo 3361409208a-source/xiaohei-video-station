@@ -11,7 +11,14 @@ export default async function MoviePage({ params, searchParams }) {
   const id = lastDashIndex !== -1 ? slug.substring(lastDashIndex + 1) : slug;
 
   return (
-    <Suspense fallback={<div style={{color:'white', padding:'20px'}}>加载播放器中...</div>}>
+    <Suspense fallback={
+      <div className="page-wrapper" style={{background:'#0a0a0a', minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center'}}>
+        <div className="loading-con">
+          <div className="spinner"></div>
+          <div className="loading-text">正在为您准备精彩影片...</div>
+        </div>
+      </div>
+    }>
       <MoviePlayer
         id={id}
         src={resolvedSearchParams.src}

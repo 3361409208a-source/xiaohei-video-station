@@ -1,476 +1,292 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 export default function AdminClient({ initialStats }) {
+  const [isAuthorized, setIsAuthorized] = useState(false);
   const [activeTab, setActiveTab] = useState('stats');
+  const [loading, setLoading] = useState(false);
+  const [token, setToken] = useState('');
+
+  // 数据状态
   const [collectorStatus, setCollectorStatus] = useState({ log: '', stats: { total: 0, size: '0 MB', last_modified: 'N/A' } });
+  const [siteConfig, setSiteConfig] = useState({ site_name: '', notice: '', footer: '' });
+  const [sources, setSources] = useState([]);
+  const [trends, setTrends] = useState({});
+  const [currentMovies, setCurrentMovies] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('电影');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const [movieCache, setMovieCache] = useState({}); // 缓存每个分类的数据
-  const [currentMovies, setCurrentMovies] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('电影');
+  useEffect(() => {
+    const savedToken = sessionStorage.getItem('admin_token');
+    if (savedToken === '7897') {
+      setIsAuthorized(true);
+      setToken(savedToken);
+    }
+  }, []);
 
-  const categories = ['电影', '电视剧', '动漫', '综艺'];
+  const handleLogin = () => {
+    const input = prompt("请输入管理密码：");
+    if (input === '7897') {
+      sessionStorage.setItem('admin_token', input);
+      setToken(input);
+      setIsAuthorized(true);
+    } else {
+      alert("密码错误！");
+    }
+  };
 
-  // 获取采集器状态
+  const apiFetch = async (url, options = {}) => {
+    const headers = {
+      ...options.headers,
+      'x-admin-token': token,
+    };
+    const res = await fetch(url, { ...options, headers });
+    if (res.status === 401) {
+      alert("登录失效，请重新登录");
+      setIsAuthorized(false);
+      return null;
+    }
+    return res;
+  };
+
+  // 1. 获取采集状态
   const fetchCollectorStatus = async () => {
     setIsRefreshing(true);
-    try {
-      const res = await fetch('/api/admin/collector-status');
-      if (res.ok) {
-        const data = await res.json();
-        setCollectorStatus(data);
-      }
-    } catch (e) {
-      console.error("Failed to fetch collector status:", e);
-    }
+    const res = await apiFetch('/api/admin/collector-status');
+    if (res?.ok) setCollectorStatus(await res.json());
     setIsRefreshing(false);
   };
 
-  const triggerCollector = async () => {
-    if (!confirm("确定要启动全量采集吗？这可能会占用较多服务器资源。")) return;
-    try {
-      const res = await fetch('/api/admin/trigger-collector', { method: 'POST' });
-      if (res.ok) {
-        alert("采集任务已在后台启动！");
-        fetchCollectorStatus();
-      }
-    } catch (e) {
-      alert("启动失败：" + e.message);
-    }
+  // 2. 获取全局配置
+  const fetchConfig = async () => {
+    const res = await apiFetch('/api/admin/config');
+    if (res?.ok) setSiteConfig(await res.json());
   };
 
-  // 加载影片列表（带缓存）
+  const saveConfig = async () => {
+    setLoading(true);
+    const res = await apiFetch('/api/admin/config', {
+      method: 'POST',
+      body: JSON.stringify(siteConfig)
+    });
+    if (res?.ok) alert("配置保存成功！");
+    setLoading(false);
+  };
+
+  // 3. 获取资源源
+  const fetchSources = async () => {
+    const res = await apiFetch('/api/admin/sources');
+    if (res?.ok) setSources(await res.json());
+  };
+
+  const saveSources = async (newSources) => {
+    const res = await apiFetch('/api/admin/sources', {
+      method: 'POST',
+      body: JSON.stringify(newSources)
+    });
+    if (res?.ok) {
+      setSources(newSources);
+      return true;
+    }
+    return false;
+  };
+
+  // 4. 获取搜索热词
+  const fetchTrends = async () => {
+    const res = await apiFetch('/api/admin/trends');
+    if (res?.ok) setTrends(await res.json());
+  };
+
+  // 5. 获取影片列表
   const loadMovieList = async (category) => {
-    // 如果已有缓存，直接使用
-    if (movieCache[category]) {
-      setCurrentMovies(movieCache[category]);
-      setSelectedCategory(category);
-      return;
-    }
-
     setLoading(true);
-    try {
-      const response = await fetch(`/api/search?t=${encodeURIComponent(category)}`);
-      if (response.ok) {
-        const movies = await response.json();
-        // 按ID去重
-        const uniqueMovies = new Map();
-        movies.forEach(movie => {
-          if (!uniqueMovies.has(movie.id)) {
-            uniqueMovies.set(movie.id, movie);
-          }
-        });
-        const movieList = Array.from(uniqueMovies.values());
-
-        // 更新缓存
-        setMovieCache(prev => ({...prev, [category]: movieList}));
-        setCurrentMovies(movieList);
-        setSelectedCategory(category);
-      }
-    } catch (error) {
-      console.error('Failed to load movies:', error);
-    }
+    const res = await apiFetch(`/api/search?t=${encodeURIComponent(category)}`);
+    if (res?.ok) setCurrentMovies(await res.json());
     setLoading(false);
   };
 
-  // 搜索影片
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
-      if (response.ok) {
-        const movies = await response.json();
-        setSearchResults(movies);
-      }
-    } catch (error) {
-      console.error('Search failed:', error);
-    }
-    setLoading(false);
-  };
+  if (!isAuthorized) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000' }}>
+        <button onClick={handleLogin} style={{ padding: '1rem 2rem', background: '#e11d48', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '1.2rem' }}>
+          🔒 进入黑金管理中枢
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div style={{minHeight: '100vh', background: 'var(--bg-dark)', color: 'var(--text-main)'}}>
-      <header className="site-header">
-        <div className="container" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-          <Link href="/" className="logo">🐾 小黑搜影</Link>
-          <h1 style={{fontSize: '1.2rem', margin: 0}}>管理后台</h1>
-          <Link href="/" style={{color: '#ccc', textDecoration: 'none', fontSize: '0.9rem'}}>返回首页</Link>
-        </div>
+    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#f8fafc', fontFamily: 'system-ui' }}>
+      <header style={{ background: '#1e293b', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155' }}>
+        <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#38bdf8' }}>🌚 小黑搜影·管理中枢</div>
+        <button onClick={() => { sessionStorage.clear(); location.reload(); }} style={{ background: 'transparent', color: '#94a3b8', border: '1px solid #334155', padding: '0.4rem 1rem', borderRadius: '4px', cursor: 'pointer' }}>安全退出</button>
       </header>
 
-      <main className="container" style={{paddingTop: '2rem'}}>
-        {/* 标签页导航 */}
-        <div style={{
-          display: 'flex',
-          gap: '1rem',
-          marginBottom: '2rem',
-          borderBottom: '2px solid rgba(255,255,255,0.1)'
-        }}>
-          <button
-            onClick={() => setActiveTab('stats')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: activeTab === 'stats' ? 'var(--primary)' : 'var(--text-dim)',
-              fontSize: '1rem',
-              padding: '0.75rem 1.5rem',
-              cursor: 'pointer',
-              borderBottom: activeTab === 'stats' ? '2px solid var(--primary)' : 'none',
-              marginBottom: '-2px'
-            }}
-          >
-            📊 统计概览
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('list');
-              if (currentMovies.length === 0) {
-                loadMovieList(selectedCategory);
-              }
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: activeTab === 'list' ? 'var(--primary)' : 'var(--text-dim)',
-              fontSize: '1rem',
-              padding: '0.75rem 1.5rem',
-              cursor: 'pointer',
-              borderBottom: activeTab === 'list' ? '2px solid var(--primary)' : 'none',
-              marginBottom: '-2px'
-            }}
-          >
-            📝 影片列表
-          </button>
-          <button
-            onClick={() => setActiveTab('add')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: activeTab === 'add' ? 'var(--primary)' : 'var(--text-dim)',
-              fontSize: '1rem',
-              padding: '0.75rem 1.5rem',
-              cursor: 'pointer',
-              borderBottom: activeTab === 'add' ? '2px solid var(--primary)' : 'none',
-              marginBottom: '-2px'
-            }}
-          >
-            ➕ 搜索添加
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('collector');
-              fetchCollectorStatus();
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: activeTab === 'collector' ? 'var(--primary)' : 'var(--text-dim)',
-              fontSize: '1rem',
-              padding: '0.75rem 1.5rem',
-              cursor: 'pointer',
-              borderBottom: activeTab === 'collector' ? '2px solid var(--primary)' : 'none',
-              marginBottom: '-2px'
-            }}
-          >
-            ⚙️ 采集动向
-          </button>
+      <main style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 1rem' }}>
+        {/* 导航栏 */}
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid #334155' }}>
+          {['stats', 'config', 'sources', 'list', 'collector'].map(tab => (
+            <button key={tab} onClick={() => {
+              setActiveTab(tab);
+              if (tab === 'config') fetchConfig();
+              if (tab === 'sources') fetchSources();
+              if (tab === 'collector') fetchCollectorStatus();
+              if (tab === 'stats') fetchTrends();
+            }} style={{
+              background: 'none', border: 'none', padding: '1rem', cursor: 'pointer', fontSize: '1rem',
+              color: activeTab === tab ? '#38bdf8' : '#94a3b8',
+              borderBottom: activeTab === tab ? '2px solid #38bdf8' : 'none',
+              marginBottom: '-1px'
+            }}>
+              {tab === 'stats' && '📊 统计/热词'}
+              {tab === 'config' && '🔍 全局配置'}
+              {tab === 'sources' && '📡 资源源站'}
+              {tab === 'list' && '📝 影片库'}
+              {tab === 'collector' && '⚙️ 采集动向'}
+            </button>
+          ))}
         </div>
 
-        {/* 采集动向标签页 */}
-        {activeTab === 'collector' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1.5rem' }}>
-            {/* 左侧状态卡片 */}
-            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '1.5rem', height: 'fit-content' }}>
-              <h3 style={{ marginTop: 0 }}>数据状态</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>全量索引条数</div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--primary)' }}>{collectorStatus.stats.total || 0}</div>
-                </div>
-                <div style={{ fontSize: '0.9rem' }}>
-                  <div style={{ marginBottom: '0.5rem' }}>📁 文件大小: {collectorStatus.stats.size}</div>
-                  <div style={{ color: 'var(--text-dim)' }}>📅 最后同步: {collectorStatus.stats.last_modified}</div>
-                </div>
-                <button 
-                  onClick={triggerCollector}
-                  style={{ 
-                    background: '#ef4444', color: 'white', border: 'none', padding: '0.8rem', 
-                    borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' 
-                  }}
-                >
-                  🚀 启动全量采集
-                </button>
-              </div>
-            </div>
-
-            {/* 右侧日志查看器 */}
-            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ margin: 0 }}>实时日志 (collector.log)</h3>
-                <button 
-                  onClick={fetchCollectorStatus}
-                  style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '0.4rem 1rem', borderRadius: '4px', cursor: 'pointer' }}
-                >
-                  {isRefreshing ? '同步中...' : '🔄 刷新日志'}
-                </button>
-              </div>
-              <pre style={{ 
-                flex: 1, background: '#000', color: '#4ade80', padding: '1rem', 
-                borderRadius: '8px', fontSize: '0.85rem', lineHeight: '1.4', 
-                overflowY: 'auto', maxHeight: '500px', whiteSpace: 'pre-wrap'
-              }}>
-                {collectorStatus.log || '等待采集日志中...'}
-              </pre>
-            </div>
-          </div>
-        )}
-
-        {/* 统计概览标签页 */}
+        {/* 统计与热词 */}
         {activeTab === 'stats' && (
-          <div style={{
-            background: 'var(--bg-card)',
-            borderRadius: '12px',
-            padding: '2rem',
-            maxWidth: '800px',
-            margin: '0 auto'
-          }}>
-            <h2 style={{marginTop: 0, color: 'var(--primary)'}}>影片收录统计</h2>
-
-            {initialStats ? (
-              <div style={{
-                background: 'rgba(255,255,255,0.03)',
-                padding: '1.5rem',
-                borderRadius: '8px',
-                marginBottom: '2rem'
-              }}>
-                <div style={{fontSize: '2rem', fontWeight: 'bold', color: 'var(--primary)', marginBottom: '1rem'}}>
-                  总计: {initialStats.total} 部影片
-                </div>
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem'}}>
-                  {Object.entries(initialStats.categories).map(([category, count]) => (
-                    <div key={category} style={{
-                      background: 'rgba(255,255,255,0.05)',
-                      padding: '1rem',
-                      borderRadius: '6px'
-                    }}>
-                      <div style={{fontSize: '0.9rem', color: 'var(--text-dim)'}}>{category}</div>
-                      <div style={{fontSize: '1.5rem', fontWeight: 'bold', marginTop: '0.5rem'}}>{count} 部</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{marginTop: '1rem', fontSize: '0.85rem', color: 'var(--text-dim)'}}>
-                  最后更新: {initialStats.lastUpdate}
-                </div>
-                <div style={{marginTop: '0.5rem', fontSize: '0.85rem', color: '#4ade80'}}>
-                  ✓ 页面打开时自动统计，数据缓存1小时
-                </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+            <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px' }}>
+              <h3 style={{ marginTop: 0, color: '#38bdf8' }}>收录统计</h3>
+              <div style={{ fontSize: '3rem', fontWeight: 'bold' }}>{initialStats?.total || 0} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>部影片</span></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.5rem' }}>
+                {initialStats && Object.entries(initialStats.categories).map(([k, v]) => (
+                  <div key={k} style={{ background: '#334155', padding: '1rem', borderRadius: '8px' }}>
+                    <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>{k}</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{v}</div>
+                  </div>
+                ))}
               </div>
-            ) : (
-              <div style={{padding: '2rem', textAlign: 'center', color: 'var(--text-dim)'}}>
-                无法获取统计数据，请检查后端API是否正常运行
+            </div>
+            <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px' }}>
+              <h3 style={{ marginTop: 0, color: '#f59e0b' }}>📈 搜索热词排行</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {Object.entries(trends).length > 0 ? Object.entries(trends).map(([word, count], i) => (
+                  <div key={word} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', background: '#334155', borderRadius: '4px' }}>
+                    <span>{i + 1}. {word}</span>
+                    <span style={{ color: '#f59e0b' }}>{count} 次</span>
+                  </div>
+                )) : <div style={{ color: '#94a3b8' }}>暂无搜索记录</div>}
               </div>
-            )}
+            </div>
           </div>
         )}
 
-        {/* 影片列表标签页 */}
-        {activeTab === 'list' && (
-          <div style={{
-            background: 'var(--bg-card)',
-            borderRadius: '12px',
-            padding: '2rem'
-          }}>
-            <h2 style={{marginTop: 0, color: 'var(--primary)'}}>影片列表</h2>
+        {/* 全局配置 */}
+        {activeTab === 'config' && (
+          <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px', maxWidth: '600px' }}>
+            <h3 style={{ marginTop: 0 }}>全局配置</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#94a3b8' }}>网站名称</label>
+                <input value={siteConfig.site_name} onChange={e => setSiteConfig({ ...siteConfig, site_name: e.target.value })} style={{ width: '100%', padding: '0.8rem', background: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '6px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#94a3b8' }}>全站公告</label>
+                <textarea value={siteConfig.notice} onChange={e => setSiteConfig({ ...siteConfig, notice: e.target.value })} style={{ width: '100%', padding: '0.8rem', background: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '6px', height: '100px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', color: '#94a3b8' }}>页脚文字</label>
+                <input value={siteConfig.footer} onChange={e => setSiteConfig({ ...siteConfig, footer: e.target.value })} style={{ width: '100%', padding: '0.8rem', background: '#0f172a', border: '1px solid #334155', color: '#fff', borderRadius: '6px' }} />
+              </div>
+              <button onClick={saveConfig} disabled={loading} style={{ background: '#38bdf8', color: '#fff', padding: '1rem', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{loading ? '保存中...' : '💾 保存配置'}</button>
+            </div>
+          </div>
+        )}
 
-            {/* 分类选择 */}
-            <div style={{display: 'flex', gap: '1rem', marginBottom: '1.5rem'}}>
-              {categories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => {
-                    setSelectedCategory(cat);
-                    loadMovieList(cat);
-                  }}
-                  style={{
-                    background: selectedCategory === cat ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                    color: 'white',
-                    border: 'none',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '6px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {cat}
-                </button>
+        {/* 资源源站管理 */}
+        {activeTab === 'sources' && (
+          <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: 0 }}>📡 资源源站管理</h3>
+              <button onClick={() => {
+                const name = prompt("源站名称:");
+                const api = prompt("API 地址 (ac=detail):");
+                if (name && api) saveSources([...sources, { name, api, tip: '新源', active: true }]);
+              }} style={{ background: '#10b981', color: '#fff', border: 'none', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer' }}>➕ 新增源站</button>
+            </div>
+            <div style={{ display: 'grid', gap: '1rem' }}>
+              {sources.map((src, idx) => (
+                <div key={idx} style={{ background: '#334155', padding: '1.5rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      {src.name} 
+                      <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: src.active ? '#10b981' : '#ef4444', borderRadius: '4px' }}>{src.active ? '启用中' : '已停用'}</span>
+                    </div>
+                    <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.4rem' }}>{src.api}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button onClick={() => {
+                      const newSources = [...sources];
+                      newSources[idx].active = !newSources[idx].active;
+                      saveSources(newSources);
+                    }} style={{ padding: '0.4rem 0.8rem', borderRadius: '4px', border: 'none', cursor: 'pointer', background: src.active ? '#ef4444' : '#10b981', color: '#fff' }}>{src.active ? '停用' : '启用'}</button>
+                    <button onClick={() => {
+                      if (confirm("确定删除吗？")) {
+                        const newSources = sources.filter((_, i) => i !== idx);
+                        saveSources(newSources);
+                      }
+                    }} style={{ padding: '0.4rem 0.8rem', borderRadius: '4px', border: 'none', cursor: 'pointer', background: '#334155', color: '#f8fafc', border: '1px solid #475569' }}>删除</button>
+                  </div>
+                </div>
               ))}
             </div>
+          </div>
+        )}
 
-            {loading ? (
-              <div style={{textAlign: 'center', padding: '3rem', color: 'var(--text-dim)'}}>
-                加载中...
-              </div>
-            ) : (
-              <div>
-                <div style={{marginBottom: '1rem', color: 'var(--text-dim)'}}>
-                  共 {currentMovies.length} 部影片
-                  {movieCache[selectedCategory] && (
-                    <span style={{marginLeft: '1rem', color: '#4ade80', fontSize: '0.85rem'}}>
-                      ✓ 已缓存
-                    </span>
-                  )}
-                </div>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-                  gap: '1rem',
-                  maxHeight: '600px',
-                  overflowY: 'auto'
-                }}>
-                  {currentMovies.map(movie => (
-                    <Link
-                      key={`${movie.id}-${movie.source_name}`}
-                      href={`/movie/${encodeURIComponent(`${movie.title}-${movie.id}`)}?src=${encodeURIComponent(movie.source_name)}`}
-                      target="_blank"
-                      style={{
-                        background: 'rgba(255,255,255,0.03)',
-                        padding: '1rem',
-                        borderRadius: '8px',
-                        textDecoration: 'none',
-                        color: 'var(--text-main)',
-                        transition: 'all 0.2s',
-                        cursor: 'pointer'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                    >
-                      <div style={{
-                        fontSize: '0.9rem',
-                        marginBottom: '0.5rem',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        {movie.title}
-                      </div>
-                      <div style={{fontSize: '0.75rem', color: 'var(--text-dim)'}}>
-                        {movie.source_tip} · {movie.episodes?.length || 0}集
-                      </div>
-                    </Link>
-                  ))}
-                </div>
+        {/* 影片库列表 (原有逻辑) */}
+        {activeTab === 'list' && (
+          <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+              {['电影', '电视剧', '动漫', '综艺'].map(cat => (
+                <button key={cat} onClick={() => { setSelectedCategory(cat); loadMovieList(cat); }} style={{ background: selectedCategory === cat ? '#38bdf8' : '#334155', border: 'none', color: '#fff', padding: '0.5rem 1.5rem', borderRadius: '6px', cursor: 'pointer' }}>{cat}</button>
+              ))}
+            </div>
+            {loading ? <div style={{ textAlign: 'center', padding: '2rem' }}>加载中...</div> : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '1rem' }}>
+                {currentMovies.map(m => (
+                  <div key={m.id} style={{ background: '#0f172a', padding: '0.8rem', borderRadius: '6px', fontSize: '0.8rem', overflow: 'hidden' }}>
+                    <div style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{m.title}</div>
+                    <div style={{ color: '#64748b', fontSize: '0.7rem' }}>{m.source_name}</div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         )}
 
-        {/* 搜索添加标签页 */}
-        {activeTab === 'add' && (
-          <div style={{
-            background: 'var(--bg-card)',
-            borderRadius: '12px',
-            padding: '2rem',
-            maxWidth: '800px',
-            margin: '0 auto'
-          }}>
-            <h2 style={{marginTop: 0, color: 'var(--primary)'}}>搜索影片</h2>
-
-            <div style={{marginBottom: '2rem'}}>
-              <div style={{display: 'flex', gap: '1rem'}}>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  placeholder="输入影片名称搜索..."
-                  style={{
-                    flex: 1,
-                    padding: '0.75rem',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    color: 'white',
-                    fontSize: '1rem'
-                  }}
-                />
-                <button
-                  onClick={handleSearch}
-                  disabled={loading}
-                  style={{
-                    background: 'var(--primary)',
-                    color: 'white',
-                    border: 'none',
-                    padding: '0.75rem 2rem',
-                    borderRadius: '8px',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    opacity: loading ? 0.6 : 1
-                  }}
-                >
-                  {loading ? '搜索中...' : '搜索'}
-                </button>
+        {/* 采集动向 */}
+        {activeTab === 'collector' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1.5rem' }}>
+            <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '12px' }}>
+              <h3>数据状态</h3>
+              <div style={{ background: '#0f172a', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>全量索引条数</div>
+                <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#38bdf8' }}>{collectorStatus.stats.total}</div>
               </div>
+              <div style={{ fontSize: '0.9rem', color: '#94a3b8' }}>
+                <div>📁 大小: {collectorStatus.stats.size}</div>
+                <div style={{ marginTop: '0.4rem' }}>📅 同步: {collectorStatus.stats.last_modified}</div>
+              </div>
+              <button onClick={async () => {
+                if (confirm("确定启动？")) {
+                  const res = await apiFetch('/api/admin/trigger-collector', { method: 'POST' });
+                  if (res?.ok) alert("已启动");
+                }
+              }} style={{ width: '100%', marginTop: '1.5rem', padding: '1rem', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>🚀 启动全量采集</button>
             </div>
-
-            {searchResults.length > 0 && (
-              <div>
-                <div style={{marginBottom: '1rem', color: 'var(--text-dim)'}}>
-                  找到 {searchResults.length} 个结果
-                </div>
-                <div style={{display: 'grid', gap: '1rem'}}>
-                  {searchResults.map(movie => (
-                    <div
-                      key={`${movie.id}-${movie.source_name}`}
-                      style={{
-                        background: 'rgba(255,255,255,0.03)',
-                        padding: '1.5rem',
-                        borderRadius: '8px',
-                        display: 'flex',
-                        gap: '1rem'
-                      }}
-                    >
-                      <img
-                        src={movie.poster}
-                        alt={movie.title}
-                        style={{
-                          width: '80px',
-                          height: '120px',
-                          objectFit: 'cover',
-                          borderRadius: '6px'
-                        }}
-                        onError={(e) => e.target.src = 'https://via.placeholder.com/80x120?text=No+Poster'}
-                      />
-                      <div style={{flex: 1}}>
-                        <h3 style={{margin: '0 0 0.5rem 0', fontSize: '1.1rem'}}>{movie.title}</h3>
-                        <div style={{fontSize: '0.85rem', color: 'var(--text-dim)', marginBottom: '0.5rem'}}>
-                          {movie.category} · {movie.source_tip} · {movie.episodes?.length || 0}集
-                        </div>
-                        <Link
-                          href={`/movie/${encodeURIComponent(`${movie.title}-${movie.id}`)}?src=${encodeURIComponent(movie.source_name)}`}
-                          target="_blank"
-                          style={{
-                            display: 'inline-block',
-                            background: 'var(--primary)',
-                            color: 'white',
-                            padding: '0.5rem 1rem',
-                            borderRadius: '6px',
-                            textDecoration: 'none',
-                            fontSize: '0.9rem'
-                          }}
-                        >
-                          查看详情
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                <h3 style={{ margin: 0 }}>实时日志</h3>
+                <button onClick={fetchCollectorStatus} style={{ background: '#334155', color: '#fff', border: 'none', padding: '0.4rem 1rem', borderRadius: '4px' }}>{isRefreshing ? '更新中...' : '🔄 刷新'}</button>
               </div>
-            )}
+              <pre style={{ height: '400px', overflowY: 'auto', background: '#000', color: '#4ade80', padding: '1rem', borderRadius: '8px', fontSize: '0.8rem' }}>{collectorStatus.log}</pre>
+            </div>
           </div>
         )}
       </main>

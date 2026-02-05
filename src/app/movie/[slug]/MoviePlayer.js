@@ -9,6 +9,15 @@ export default function MoviePlayer({ id, src, initialUrl }) {
   const playerRef = useRef(null);
   const dpInstance = useRef(null);
   const [isDescCollapsed, setIsDescCollapsed] = useState(true);
+  const [config, setConfig] = useState({ site_name: '小黑搜影', footer: '' });
+
+  useEffect(() => {
+    // 加载后台配置
+    fetch('/api/config')
+      .then(res => res.json())
+      .then(data => setConfig(data))
+      .catch(err => console.error("Config load failed", err));
+  }, []);
 
   useEffect(() => {
     if (!id || !src) return;
@@ -19,9 +28,9 @@ export default function MoviePlayer({ id, src, initialUrl }) {
         const data = await res.json();
         setDetail(data);
 
-        // 更新页面标题
+        // 更新页面标题，优先使用后台设置的站名
         if (data.title) {
-          document.title = `${data.title}在线免费观看 - 小黑搜影`;
+          document.title = `${data.title}在线免费观看 - ${config.site_name}`;
         }
 
         if (!currentUrl && data.episodes && data.episodes.length > 0) {
@@ -37,7 +46,7 @@ export default function MoviePlayer({ id, src, initialUrl }) {
     };
 
     fetchDetail();
-  }, [id, src, initialUrl]);
+  }, [id, src, initialUrl, config.site_name]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && currentUrl) {
@@ -71,10 +80,10 @@ export default function MoviePlayer({ id, src, initialUrl }) {
   }, [currentUrl]);
 
   return (
-    <div style={{minHeight:'100vh', display:'flex', flexDirection:'column', overflowX: 'hidden'}}>
+    <div className="page-wrapper" style={{minHeight:'100vh', display:'flex', flexDirection:'column', overflowX: 'hidden', background: '#000'}}>
       <header className="site-header" style={{background: '#111'}}>
         <div className="container" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-          <Link href="/" className="logo">🐾 小黑搜影</Link>
+          <Link href="/" className="logo">{config.site_name}</Link>
           <div style={{fontSize: '0.9rem', color: '#888'}}>{detail?.title || '正在加载...'}</div>
           <Link href="/" style={{color: '#ccc', textDecoration: 'none', fontSize: '0.8rem'}}>返回搜索</Link>
         </div>
@@ -87,7 +96,7 @@ export default function MoviePlayer({ id, src, initialUrl }) {
         </div>
       </div>
 
-      <div className="play-layout">
+      <div className="play-layout" style={{ flex: 1 }}>
         <div className="player-main">
           <div ref={playerRef} style={{ width: '100%', aspectRatio: '16/9' }}></div>
           {detail && (
@@ -133,7 +142,7 @@ export default function MoviePlayer({ id, src, initialUrl }) {
 
         <div className="episode-sidebar">
           <div className="sidebar-title">选集播放</div>
-          <div className="ep-grid">
+          <div className={`ep-grid ${detail?.episodes?.length > 20 ? 'scroll-mode' : ''}`}>
             {detail?.episodes?.map((ep) => (
               <div
                 key={ep.url}
@@ -149,6 +158,12 @@ export default function MoviePlayer({ id, src, initialUrl }) {
           </div>
         </div>
       </div>
+
+      <footer className="site-footer">
+        <div className="container">
+          {config.footer || `© 2026 ${config.site_name}`}
+        </div>
+      </footer>
     </div>
   );
 }
