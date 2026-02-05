@@ -1,7 +1,5 @@
 User-agent: *
 Allow: /
-
-Sitemap: https://xiaohei-video-station.vercel.app/sitemap-index.xml
 Disallow: /admin
 
 Sitemap: https://xiaohei-video-station.vercel.app/sitemap.xml

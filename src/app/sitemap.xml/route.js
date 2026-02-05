@@ -8,19 +8,21 @@ export async function GET() {
 
   try {
     const infoRes = await fetch(`${API_URL}/api/sitemap-info`, { cache: 'no-store' });
-    if (!infoRes.ok) throw new Error('Backend unreach');
+    if (!infoRes.ok) throw new Error('Backend unreachable');
     const info = await infoRes.json();
     const totalChunks = Math.ceil(info.total / 5000);
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
     for (let i = 0; i <= totalChunks; i++) {
-      // 指向具有 .xml 后缀的路径，更受 Google 欢迎
       xml += `  <sitemap>\n    <loc>${baseUrl}/sitemap/${i}.xml</loc>\n  </sitemap>\n`;
     }
     xml += `</sitemapindex>`;
 
     return new NextResponse(xml, {
-      headers: { 'Content-Type': 'application/xml' }
+      headers: { 
+        'Content-Type': 'application/xml; charset=utf-8',
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=600'
+      }
     });
   } catch (e) {
     const fallback = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n<url><loc>${baseUrl}/</loc></url>\n</urlset>`;

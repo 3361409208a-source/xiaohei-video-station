@@ -4,17 +4,23 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request, { params: paramsPromise }) {
   const params = await paramsPromise;
+  // 兼容性处理：去除可能存在的 .xml 后缀
   const id = params.id.replace('.xml', '');
   const baseUrl = 'https://xiaohei-video-station.vercel.app';
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://xiaohei-video-station-production.up.railway.app';
 
-  // 1. 根据分卷 ID 设置不同的缓存策略
-  // 卷 0 (最新) 每小时刷新一次，历史卷每天刷新一次
-  const revalidateTime = id === '0' ? 3600 : 86400;
+  // --- 1. 差异化刷新策略 (根据大神要求更新) ---
+  // 卷 0 (最新) 每小时刷新一次 (3600s)
+  // 历史卷 每三天刷新一次 (259200s)
+  const isNewChunk = id === '0';
+  const revalidateTime = isNewChunk ? 3600 : 259200;
 
   try {
     const res = await fetch(`${API_URL}/api/sitemap-raw?chunk=${id}`, { 
-      next: { revalidate: revalidateTime } 
+      next: { revalidate: revalidateTime },
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+      }
     });
     
     if (!res.ok) return new NextResponse('', { status: 404 });
@@ -26,10 +32,9 @@ export async function GET(request, { params: paramsPromise }) {
       const url = `${baseUrl}/movie/${encodeURIComponent(`${m.title}-${m.id}`)}?src=${encodeURIComponent(m.source || '默认')}`;
       const date = m.update_time ? new Date(m.update_time).toISOString() : new Date().toISOString();
       
-      // 2. 核心逻辑：区分最新和老旧影片的权重与频率
-      // 卷 0 为最新资源，给与最高优先级
-      const frequency = id === '0' ? 'daily' : 'monthly';
-      const priority = id === '0' ? '1.0' : '0.4';
+      // 差异化权重
+      const frequency = isNewChunk ? 'hourly' : 'weekly';
+      const priority = isNewChunk ? '1.0' : '0.4';
       
       xml += `  <url>\n    <loc>${url}</loc>\n    <lastmod>${date}</lastmod>\n    <changefreq>${frequency}</changefreq>\n    <priority>${priority}</priority>\n  </url>\n`;
     });
@@ -38,8 +43,8 @@ export async function GET(request, { params: paramsPromise }) {
 
     return new NextResponse(xml, {
       headers: {
-        'Content-Type': 'application/xml',
-        // 告知 Vercel CDN 的缓存时间
+        'Content-Type': 'application/xml; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff',
         'Cache-Control': `public, s-maxage=${revalidateTime}, stale-while-revalidate=600`
       }
     });
