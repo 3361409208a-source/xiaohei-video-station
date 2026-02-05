@@ -14,41 +14,38 @@ function ChannelContent({ paramsPromise }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '' });
+  const [isMobile, setIsMobile] = useState(false);
 
+  // 1. 基础配置与设备检测
   useEffect(() => {
     fetch('/api/config').then(res => res.json()).then(data => setConfig(data));
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // 核心：监听 type 和 page 的变化，发起 API 请求并打印详细日志
+  // 2. 核心：监听 type 和 page 的变化
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       window.scrollTo(0, 0);
       
-      const apiCall = `/api/search?t=${encodeURIComponent(type)}&pg=${page}&_nocache=${Date.now()}`;
-      console.log(`%c🚀 [REQUEST] 正在搬运第 ${page} 页数据...`, 'color: #38bdf8; font-weight: bold;');
-      console.log(`%c🔗 URL: ${apiCall}`, 'color: #94a3b8;');
-
       try {
+        const apiCall = `/api/search?t=${encodeURIComponent(type)}&pg=${page}&_nocache=${Date.now()}`;
+        console.log(`🌚 [DEBUG] 第 ${page} 页 URL: ${apiCall}`);
+
         const res = await fetch(apiCall, { cache: 'no-store' });
         const data = await res.json();
         
         if (Array.isArray(data)) {
           setResults(data);
-          // 打印数据特征，方便在控制台肉眼验证
-          console.log(`%c✅ [RESPONSE] 成功接收到 ${data.length} 条影片`, 'color: #10b981; font-weight: bold;');
-          if (data.length > 0) {
-            console.log('%c🔍 本页首批影片预览:', 'color: #f59e0b;');
-            data.slice(0, 3).forEach((item, i) => {
-              console.log(`   ${i+1}. [ID: ${item.id}] ${item.title}`);
-            });
-          }
+          console.log(`✅ [RESPONSE] 收到 ${data.length} 条数据`);
         } else {
           setResults([]);
-          console.warn('⚠️ [RESPONSE] 返回的数据不是数组格式');
         }
       } catch (error) {
-        console.error('❌ [ERROR] 数据请求失败:', error);
+        console.error('Fetch error:', error);
         setResults([]);
       }
       setLoading(false);
@@ -61,6 +58,9 @@ function ChannelContent({ paramsPromise }) {
     if (newPage < 1) return;
     router.push(`/channel/${encodeURIComponent(type)}?pg=${newPage}`);
   };
+
+  // 大哥指示：移动端最多展示 15 个
+  const displayResults = isMobile ? results.slice(0, 15) : results;
 
   return (
     <div className="page-wrapper" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -90,7 +90,7 @@ function ChannelContent({ paramsPromise }) {
       <main className="container" style={{ flex: 1 }}>
         <div className="section-header">
           <div className="section-title">最新{type}</div>
-          <div className="view-all" style={{ opacity: 0.5 }}>PAGE {page}</div>
+          <div className="view-all" style={{ opacity: 0.5 }}>PAGE {page} {isMobile && '(MOBILE 15)'}</div>
         </div>
 
         {loading ? (
@@ -101,7 +101,7 @@ function ChannelContent({ paramsPromise }) {
         ) : (
           <>
             <div className="movie-grid">
-              {results.map((item, idx) => (
+              {displayResults.map((item, idx) => (
                 <Link key={`${item.id}-${idx}`} href={`/movie/${encodeURIComponent(`${item.title}-${item.id}`)}?src=${encodeURIComponent(item.source_name)}`} className="movie-card">
                   <div className="movie-poster-wrap">
                     <img className="movie-poster-img" src={item.poster} alt={item.title} onError={(e) => e.target.src = 'https://via.placeholder.com/400x600?text=No+Poster'} />
@@ -116,10 +116,10 @@ function ChannelContent({ paramsPromise }) {
             <div className="pagination">
               <button className="page-btn" disabled={page <= 1} onClick={() => goToPage(page - 1)}>上一页</button>
               <div className="page-info">第 {page} 页</div>
-              <button className="page-btn" disabled={results.length < 30} onClick={() => goToPage(page + 1)}>下一页</button>
+              <button className="page-btn" disabled={results.length < (isMobile ? 15 : 30)} onClick={() => goToPage(page + 1)}>下一页</button>
             </div>
             
-            {results.length === 0 && (
+            {displayResults.length === 0 && (
               <div style={{ textAlign: 'center', padding: '100px 0', opacity: 0.3 }}>该页暂无更多内容</div>
             )}
           </>

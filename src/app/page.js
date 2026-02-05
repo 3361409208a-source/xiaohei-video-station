@@ -8,9 +8,9 @@ function HomeContent() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
   const [activeTab, setActiveTab] = useState('首页');
   const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '' });
+  const [isMobile, setIsMobile] = useState(false);
 
   const categories = [
     { name: '首页', path: '/', active: true },
@@ -24,18 +24,24 @@ function HomeContent() {
 
   const hotSearches = ['繁花', '沙丘 2', '周处除三害', '葬送的芙莉莲'];
 
-  const handleSearch = async (q = '', pg = 1) => {
+  useEffect(() => {
+    fetch('/api/config').then(res => res.json()).then(data => setConfig(data));
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const handleSearch = async (q = '') => {
     const targetQ = q || query;
     if (!targetQ.trim()) return;
 
     setLoading(true);
     setActiveTab('搜索');
-    // 搜索时自动滚到结果区上方
-    if (pg === 1) window.scrollTo({ top: 300, behavior: 'smooth' });
+    if (typeof window !== 'undefined') window.scrollTo({ top: 300, behavior: 'smooth' });
 
     try {
-      // 加上随机指纹，打死缓存
-      const response = await fetch(`/api/search?q=${encodeURIComponent(targetQ)}&pg=${pg}&_ts=${Date.now()}`);
+      const response = await fetch(`/api/search?q=${encodeURIComponent(targetQ)}&_ts=${Date.now()}`);
       const data = await response.json();
       setResults(data);
     } catch (error) {
@@ -45,12 +51,10 @@ function HomeContent() {
   };
 
   useEffect(() => {
-    fetch('/api/config').then(res => res.json()).then(data => setConfig(data));
-    
     const q = searchParams.get('q');
     if (q) {
       setQuery(q);
-      handleSearch(q, 1);
+      handleSearch(q);
     } else {
       setLoading(true);
       fetch('/api/latest')
@@ -62,6 +66,9 @@ function HomeContent() {
         .catch(() => setLoading(false));
     }
   }, [searchParams]);
+
+  // 大哥指示：移动端最多展示 15 个
+  const displayResults = isMobile ? results.slice(0, 15) : results;
 
   return (
     <div className="page-wrapper" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -98,13 +105,13 @@ function HomeContent() {
               <div className="search-icon-left">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
               </div>
-              <input type="text" className="search-input" value={query} onChange={(e) => setQuery(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSearch(query, 1)} placeholder="搜索电影、电视剧、动漫、演员..." />
-              <button className="search-btn" onClick={() => handleSearch(query, 1)}>搜 索</button>
+              <input type="text" className="search-input" value={query} onChange={(e) => setQuery(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSearch(query)} placeholder="搜索电影、电视剧、动漫、演员..." />
+              <button className="search-btn" onClick={() => handleSearch(query)}>搜 索</button>
             </div>
             <div className="hot-searches">
               <span className="hot-label">热门搜索:</span>
               {hotSearches.map(tag => (
-                <span key={tag} className="hot-tag" style={{cursor: 'pointer'}} onClick={() => { setQuery(tag); handleSearch(tag, 1); }}>{tag}</span>
+                <span key={tag} className="hot-tag" style={{cursor: 'pointer'}} onClick={() => { setQuery(tag); handleSearch(tag); }}>{tag}</span>
               ))}
             </div>
           </div>
@@ -118,15 +125,15 @@ function HomeContent() {
             <div className="loading-text">正在搜寻全球资源...</div>
           </div>
         ) : (
-          results.length > 0 && (
+          displayResults.length > 0 && (
             <>
               <div className="section-header">
                 <div className="section-title">{activeTab === '搜索' ? `“${query}”的搜索结果` : '今日热播推荐'}</div>
                 {activeTab !== '搜索' && <Link href="/channel/电影" className="view-all">查看全部 ›</Link>}
               </div>
               <div className="movie-grid">
-                {results.map((item) => (
-                  <Link key={`${item.id}-${item.source_name}`} href={`/movie/${encodeURIComponent(`${item.title}-${item.id}`)}?src=${encodeURIComponent(item.source_name)}`} className="movie-card">
+                {displayResults.map((item, idx) => (
+                  <Link key={`${item.id}-${idx}`} href={`/movie/${encodeURIComponent(`${item.title}-${item.id}`)}?src=${encodeURIComponent(item.source_name)}`} className="movie-card">
                     <div className="movie-poster-wrap">
                       <img className="movie-poster-img" src={item.poster} alt={item.title} onError={(e) => e.target.src = 'https://via.placeholder.com/400x600?text=No+Poster'} />
                       <div className="movie-quality-tag">{item.source_tip || '高清'}</div>
@@ -136,14 +143,6 @@ function HomeContent() {
                   </Link>
                 ))}
               </div>
-
-              {activeTab === '搜索' && results.length >= 30 && (
-                <div className="pagination">
-                  <button className="page-btn" disabled={page <= 1} onClick={() => { setPage(p => p - 1); handleSearch(query, page - 1); }}>上一页</button>
-                  <div className="page-info">第 {page} 页</div>
-                  <button className="page-btn" onClick={() => { setPage(p => p + 1); handleSearch(query, page + 1); }}>下一页</button>
-                </div>
-              )}
             </>
           )
         )}
