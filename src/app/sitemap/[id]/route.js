@@ -4,23 +4,20 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request, { params: paramsPromise }) {
   const params = await paramsPromise;
-  // 兼容性处理：去除可能存在的 .xml 后缀
-  const id = params.id.replace('.xml', '');
+  // 支持 0, 0.xml, sitemap-0.xml 等各种提取方式
+  const id = params.id.replace('.xml', '').replace('sitemap-', '');
+  
   const baseUrl = 'https://xiaohei-video-station.vercel.app';
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://xiaohei-video-station-production.up.railway.app';
 
-  // --- 1. 差异化刷新策略 (根据大神要求更新) ---
-  // 卷 0 (最新) 每小时刷新一次 (3600s)
-  // 历史卷 每三天刷新一次 (259200s)
+  // 卷 0 (最新) 每小时刷新，历史卷每三天刷新
   const isNewChunk = id === '0';
   const revalidateTime = isNewChunk ? 3600 : 259200;
 
   try {
     const res = await fetch(`${API_URL}/api/sitemap-raw?chunk=${id}`, { 
       next: { revalidate: revalidateTime },
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
-      }
+      headers: { 'Accept': 'application/json' }
     });
     
     if (!res.ok) return new NextResponse('', { status: 404 });
@@ -31,8 +28,6 @@ export async function GET(request, { params: paramsPromise }) {
     movies.forEach(m => {
       const url = `${baseUrl}/movie/${encodeURIComponent(`${m.title}-${m.id}`)}?src=${encodeURIComponent(m.source || '默认')}`;
       const date = m.update_time ? new Date(m.update_time).toISOString() : new Date().toISOString();
-      
-      // 差异化权重
       const frequency = isNewChunk ? 'hourly' : 'weekly';
       const priority = isNewChunk ? '1.0' : '0.4';
       
@@ -44,7 +39,7 @@ export async function GET(request, { params: paramsPromise }) {
     return new NextResponse(xml, {
       headers: {
         'Content-Type': 'application/xml; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
+        'X-Robots-Tag': 'noindex', // 分卷本身不需要被搜索，搜索结果页才需要
         'Cache-Control': `public, s-maxage=${revalidateTime}, stale-while-revalidate=600`
       }
     });
