@@ -1,95 +1,60 @@
-// 强制重新部署并移除缓存逻辑，确保 Sitemap 实时抓取
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+import fs from 'fs';
+import path from 'path';
 
-export default async function sitemap() {
-  const baseUrl = 'https://xiaohei-video-station.vercel.app';
-  // 核心修复：确保在服务端运行时也能拿到环境变量
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://xiaohei-video-station-production.up.railway.app';
-
-  // 基础页面：首页优先级最高 1.0
-  const routes = [
-    {
-      url: baseUrl,
-      lastModified: new Date(),
-      changeFrequency: 'daily',
-      priority: 1.0,
-      languages: {
-        'zh-CN': `${baseUrl}`,
-      },
-    },
-  ];
-
-  // 如果配置了后台API，尝试获取影片列表
-  try {
-    const movieMap = new Map();
-
-    // 1. 获取全源最新更新 (ac=detail 不带参数)
-    try {
-      const response = await fetch(`${API_URL}/api/search`, {
-        next: { revalidate: 0 },
-        signal: AbortSignal.timeout(10000)
-      });
-
-      if (response.ok) {
-        const movies = await response.json();
-        movies.forEach((movie, index) => {
-          if (movie.id && movie.source_name && movie.title) {
-            const slug = `${movie.title}-${movie.id}`;
-            const priority = index < 30 ? 0.9 : 0.7;
-            movieMap.set(`${movie.id}-${movie.source_name}`, {
-              url: `${baseUrl}/movie/${encodeURIComponent(slug)}?src=${encodeURIComponent(movie.source_name)}`,
-              lastModified: new Date(),
-              changeFrequency: 'weekly',
-              priority: priority,
-              languages: {
-                'zh-CN': `${baseUrl}/movie/${encodeURIComponent(slug)}?src=${encodeURIComponent(movie.source_name)}`,
-              },
-            });
-          }
-        });
-      }
-    } catch (e) {
-      console.error("Sitemap global fetch failed:", e);
-    }
-
-    // 2. 按分类深度获取 (每个分类取多页)
-    const categories = ['电影', '电视剧', '动漫', '综艺'];
-    for (const category of categories) {
-      try {
-        // 请求后端获取指定分类的数据
-        const response = await fetch(`${API_URL}/api/search?t=${encodeURIComponent(category)}`, {
-          next: { revalidate: 0 },
-          signal: AbortSignal.timeout(10000)
-        });
-
-        if (response.ok) {
-          const movies = await response.json();
-          movies.forEach((movie, index) => {
-            const key = `${movie.id}-${movie.source_name}`;
-            if (!movieMap.has(key) && movie.id && movie.title) {
-              const slug = `${movie.title}-${movie.id}`;
-              movieMap.set(key, {
-                url: `${baseUrl}/movie/${encodeURIComponent(slug)}?src=${encodeURIComponent(movie.source_name)}`,
-                lastModified: new Date(),
-                changefreq: 'weekly',
-                priority: index < 20 ? 0.8 : 0.6,
-                languages: {
-                  'zh-CN': `${baseUrl}/movie/${encodeURIComponent(slug)}?src=${encodeURIComponent(movie.source_name)}`,
-                },
-              });
-            }
-          });
-        }
-      } catch (error) {
-        console.error(`Sitemap fetch category ${category} failed:`, error);
-      }
-    }
-
-    routes.push(...Array.from(movieMap.values()));
-  } catch (error) {
-    console.error('Failed to generate movie sitemap:', error);
+export async function generateSitemaps() {
+  const dataPath = path.join(process.cwd(), 'public', 'sitemap_data.json');
+  
+  if (!fs.existsSync(dataPath)) {
+    return [{ id: 0 }];
   }
 
-  return routes;
+  try {
+    const fileContent = fs.readFileSync(dataPath, 'utf8');
+    const movies = JSON.parse(fileContent);
+    // 每卷 5000 条
+    const totalChunks = Math.ceil(movies.length / 5000);
+    
+    const sitemaps = [{ id: 0 }]; // id 0 总是作为最新更新卷
+    for (let i = 1; i <= totalChunks; i++) {
+      sitemaps.push({ id: i });
+    }
+    return sitemaps;
+  } catch (e) {
+    console.error("Error generating sitemaps list:", e);
+    return [{ id: 0 }];
+  }
+}
+
+export default async function sitemap({ id }) {
+  const baseUrl = 'https://xiaohei-video-station.vercel.app';
+  const dataPath = path.join(process.cwd(), 'public', 'sitemap_data.json');
+  
+  if (!fs.existsSync(dataPath)) {
+    return [];
+  }
+
+  try {
+    const fileContent = fs.readFileSync(dataPath, 'utf8');
+    const allMovies = JSON.parse(fileContent);
+
+    let movies = [];
+    if (id === 0) {
+      // 卷 0: 获取最新的 2000 条 (假设数据是按时间排序的，或者这里简单取前 2000)
+      movies = allMovies.slice(0, 2000);
+    } else {
+      // 历史卷: 每卷 5000 条
+      const start = (id - 1) * 5000;
+      movies = allMovies.slice(start, start + 5000);
+    }
+
+    return movies.map((movie) => ({
+      url: `${baseUrl}/movie/${encodeURIComponent(`${movie.title}-${movie.id}`)}?src=${encodeURIComponent(movie.source)}`,
+      lastModified: new Date(movie.update_time || Date.now()),
+      changeFrequency: id === 0 ? 'daily' : 'weekly',
+      priority: id === 0 ? 1.0 : 0.5,
+    }));
+  } catch (e) {
+    console.error(`Error generating sitemap ${id}:`, e);
+    return [];
+  }
 }

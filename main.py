@@ -3,6 +3,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import requests
+import os
+import json
 from bs4 import BeautifulSoup
 import re
 import urllib.parse
@@ -288,11 +290,49 @@ def get_detail(id: str, src: str):
         print(f"Detail fetch error: {e}")
     return None
 
-@app.get("/play")
-def play_page():
-    return FileResponse("play.html")
+import subprocess
 
-app.mount("/", StaticFiles(directory=".", html=True), name="static")
+# ... (inside app definition or near it)
+
+@app.get("/api/admin/collector-status")
+def get_collector_status():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    log_path = os.path.join(base_dir, "collector.log")
+    data_path = os.path.join(base_dir, "public", "sitemap_data.json")
+    
+    log_content = ""
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                log_content = "".join(lines[-100:]) # 返回最后 100 行
+        except: pass
+            
+    data_stats = {"total": 0, "size": "0 KB", "last_modified": "Never"}
+    if os.path.exists(data_path):
+        try:
+            stats = os.stat(data_path)
+            data_stats["size"] = f"{stats.st_size / 1024 / 1024:.2f} MB"
+            data_stats["last_modified"] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(stats.st_mtime))
+            with open(data_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                data_stats["total"] = len(data)
+        except: pass
+        
+    return {
+        "log": log_content,
+        "stats": data_stats
+    }
+
+@app.post("/api/admin/trigger-collector")
+def trigger_collector():
+    # 在后台启动采集脚本
+    try:
+        # 使用 Popen 避免阻塞主进程
+        subprocess.Popen([sys.executable, "build_sitemap_data.py"])
+        return {"status": "success", "message": "Collector started in background"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
     import uvicorn

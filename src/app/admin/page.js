@@ -1,57 +1,57 @@
 import AdminClient from './AdminClient';
+import fs from 'fs';
+import path from 'path';
 
 // 服务器端获取统计数据
 async function getStats() {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-  if (!API_URL) {
-    return null;
+  const dataPath = path.join(process.cwd(), 'public', 'sitemap_data.json');
+  
+  // 默认空统计
+  const defaultStats = {
+    total: 0,
+    categories: { '电影': 0, '电视剧': 0, '动漫': 0, '综艺': 0 },
+    lastUpdate: '从未同步'
+  };
+
+  if (!fs.existsSync(dataPath)) {
+    return defaultStats;
   }
 
   try {
-    const categories = ['电影', '电视剧', '动漫', '综艺'];
-    let totalMovies = 0;
-    const categoryStats = {};
+    const fileContent = fs.readFileSync(dataPath, 'utf8');
+    const movies = JSON.parse(fileContent);
+    const stats = fs.statSync(dataPath);
 
-    for (const category of categories) {
-      try {
-        const response = await fetch(`${API_URL}/api/search?t=${encodeURIComponent(category)}`, {
-          next: { revalidate: 3600 }, // 缓存1小时
-          signal: AbortSignal.timeout(10000) // 10秒超时
-        });
-
-        if (response.ok) {
-          const movies = await response.json();
-          // 按ID去重
-          const uniqueMovies = new Map();
-          movies.forEach(movie => {
-            if (!uniqueMovies.has(movie.id)) {
-              uniqueMovies.set(movie.id, movie);
-            }
-          });
-          categoryStats[category] = uniqueMovies.size;
-          totalMovies += uniqueMovies.size;
-        } else {
-          categoryStats[category] = 0;
-        }
-      } catch (error) {
-        console.error(`Failed to fetch ${category}:`, error);
-        categoryStats[category] = 0;
+    const categoryStats = { '电影': 0, '电视剧': 0, '动漫': 0, '综艺': 0 };
+    
+    movies.forEach(movie => {
+      // 简单匹配分类名称，如果不在四大类里则忽略或归类
+      const cat = movie.category || '电影';
+      if (categoryStats.hasOwnProperty(cat)) {
+        categoryStats[cat]++;
+      } else if (cat.includes('电影')) {
+        categoryStats['电影']++;
+      } else if (cat.includes('剧')) {
+        categoryStats['电视剧']++;
+      } else if (cat.includes('漫')) {
+        categoryStats['动漫']++;
+      } else if (cat.includes('综艺')) {
+        categoryStats['综艺']++;
       }
-    }
+    });
 
     return {
-      total: totalMovies,
+      total: movies.length,
       categories: categoryStats,
-      lastUpdate: new Date().toLocaleString('zh-CN')
+      lastUpdate: stats.mtime.toLocaleString('zh-CN')
     };
   } catch (error) {
-    console.error('Failed to get stats:', error);
-    return null;
+    console.error('Failed to parse sitemap data for stats:', error);
+    return defaultStats;
   }
 }
 
 export default async function AdminPage() {
   const stats = await getStats();
-
   return <AdminClient initialStats={stats} />;
 }

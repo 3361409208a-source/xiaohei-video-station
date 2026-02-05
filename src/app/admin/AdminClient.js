@@ -4,6 +4,9 @@ import Link from 'next/link';
 
 export default function AdminClient({ initialStats }) {
   const [activeTab, setActiveTab] = useState('stats');
+  const [collectorStatus, setCollectorStatus] = useState({ log: '', stats: { total: 0, size: '0 MB', last_modified: 'N/A' } });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const [movieCache, setMovieCache] = useState({}); // 缓存每个分类的数据
   const [currentMovies, setCurrentMovies] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -12,6 +15,34 @@ export default function AdminClient({ initialStats }) {
   const [selectedCategory, setSelectedCategory] = useState('电影');
 
   const categories = ['电影', '电视剧', '动漫', '综艺'];
+
+  // 获取采集器状态
+  const fetchCollectorStatus = async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch('/api/admin/collector-status');
+      if (res.ok) {
+        const data = await res.json();
+        setCollectorStatus(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch collector status:", e);
+    }
+    setIsRefreshing(false);
+  };
+
+  const triggerCollector = async () => {
+    if (!confirm("确定要启动全量采集吗？这可能会占用较多服务器资源。")) return;
+    try {
+      const res = await fetch('/api/admin/trigger-collector', { method: 'POST' });
+      if (res.ok) {
+        alert("采集任务已在后台启动！");
+        fetchCollectorStatus();
+      }
+    } catch (e) {
+      alert("启动失败：" + e.message);
+    }
+  };
 
   // 加载影片列表（带缓存）
   const loadMovieList = async (category) => {
@@ -132,7 +163,74 @@ export default function AdminClient({ initialStats }) {
           >
             ➕ 搜索添加
           </button>
+          <button
+            onClick={() => {
+              setActiveTab('collector');
+              fetchCollectorStatus();
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: activeTab === 'collector' ? 'var(--primary)' : 'var(--text-dim)',
+              fontSize: '1rem',
+              padding: '0.75rem 1.5rem',
+              cursor: 'pointer',
+              borderBottom: activeTab === 'collector' ? '2px solid var(--primary)' : 'none',
+              marginBottom: '-2px'
+            }}
+          >
+            ⚙️ 采集动向
+          </button>
         </div>
+
+        {/* 采集动向标签页 */}
+        {activeTab === 'collector' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '1.5rem' }}>
+            {/* 左侧状态卡片 */}
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '1.5rem', height: 'fit-content' }}>
+              <h3 style={{ marginTop: 0 }}>数据状态</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>全量索引条数</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--primary)' }}>{collectorStatus.stats.total || 0}</div>
+                </div>
+                <div style={{ fontSize: '0.9rem' }}>
+                  <div style={{ marginBottom: '0.5rem' }}>📁 文件大小: {collectorStatus.stats.size}</div>
+                  <div style={{ color: 'var(--text-dim)' }}>📅 最后同步: {collectorStatus.stats.last_modified}</div>
+                </div>
+                <button 
+                  onClick={triggerCollector}
+                  style={{ 
+                    background: '#ef4444', color: 'white', border: 'none', padding: '0.8rem', 
+                    borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' 
+                  }}
+                >
+                  🚀 启动全量采集
+                </button>
+              </div>
+            </div>
+
+            {/* 右侧日志查看器 */}
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ margin: 0 }}>实时日志 (collector.log)</h3>
+                <button 
+                  onClick={fetchCollectorStatus}
+                  style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '0.4rem 1rem', borderRadius: '4px', cursor: 'pointer' }}
+                >
+                  {isRefreshing ? '同步中...' : '🔄 刷新日志'}
+                </button>
+              </div>
+              <pre style={{ 
+                flex: 1, background: '#000', color: '#4ade80', padding: '1rem', 
+                borderRadius: '8px', fontSize: '0.85rem', lineHeight: '1.4', 
+                overflowY: 'auto', maxHeight: '500px', whiteSpace: 'pre-wrap'
+              }}>
+                {collectorStatus.log || '等待采集日志中...'}
+              </pre>
+            </div>
+          </div>
+        )}
 
         {/* 统计概览标签页 */}
         {activeTab === 'stats' && (
