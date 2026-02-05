@@ -118,40 +118,40 @@ LAST_LOAD_TIME = 0
 
 def get_full_data():
     global CACHED_DATA, LAST_LOAD_TIME
-    # 5分钟缓存一次，或者文件不存在则返回空
-    if not CACHED_DATA or (time.time() - LAST_LOAD_TIME > 300):
+    # 强制每 1 分钟检查一次文件更新
+    if not CACHED_DATA or (time.time() - LAST_LOAD_TIME > 60):
         if os.path.exists(SITEMAP_DATA):
             try:
                 with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
-                    CACHED_DATA = json.load(f)
-                    # 强行按更新时间倒序排序一次
-                    CACHED_DATA.sort(key=lambda x: str(x.get("update_time", "")), reverse=True)
+                    raw_data = json.load(f)
+                    # 在内存中完成排序，确保后续切片稳定
+                    raw_data.sort(key=lambda x: (str(x.get("update_time", "0000-00-00")), str(x.get("id", "0"))), reverse=True)
+                    CACHED_DATA = raw_data
                     LAST_LOAD_TIME = time.time()
-                    print(f"🌚 大神系统：成功加载全量库 {len(CACHED_DATA)} 条数据")
+                    print(f"🌚 [CACHE_LOAD] Loaded {len(CACHED_DATA)} items")
             except Exception as e:
-                print(f"Load error: {e}")
+                print(f"🌚 [CACHE_ERROR] {e}")
     return CACHED_DATA
 
 @app.get("/api/search")
 def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
     from fastapi.responses import JSONResponse
     
-    # 核心修正：如果是频道/分类查询，强行锁定从本地全量库读
+    # 路径 A：频道/分类浏览 -> 强制走本地缓存库
     if t and not q:
         all_data = get_full_data()
-        if not all_data: return []
+        if not all_data:
+            print("🌚 [WARN] No cached data available")
+            return []
         
         filtered = []
         seen_titles = set()
-        
-        # 强制按 update_time 排序，如果没有则按 ID 排序，确保物理位置绝对固定
-        all_data.sort(key=lambda x: (str(x.get("update_time", "")), str(x.get("id", ""))), reverse=True)
         
         for item in all_data:
             cat = str(item.get("category", ""))
             title = str(item.get("title", ""))
             
-            # 唯一性校验
+            # 基础去重
             unique_key = f"{title}_{cat}"
             if unique_key in seen_titles: continue
             
@@ -165,30 +165,29 @@ def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
                 is_match = True
             
             if is_match:
-                # 补齐字段
-                item["source_name"] = item.get("source", "默认源")
-                item["source_tip"] = item.get("tip", "高清")
-                # DEBUG 打桩：让前端能看到后端吐出来的真实页码
-                item["_backend_pg"] = pg
-                filtered.append(item)
+                # 显式拷贝，防止污染缓存
+                new_item = item.copy()
+                new_item["source_name"] = item.get("source", "默认源")
+                new_item["source_tip"] = item.get("tip", "高清")
+                # 注入调试信息
+                new_item["_dbg_pg"] = pg
+                filtered.append(new_item)
                 seen_titles.add(unique_key)
         
-        # 精准物理切片
+        # 精准物理分页
         page_size = 30
         start = (pg - 1) * page_size
         end = start + page_size
-        
         results = filtered[start:end]
         
-        # 强制禁用一切缓存，确保翻页即刻生效
-        headers = {
-            "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        }
-        return JSONResponse(content=results, headers=headers)
+        print(f"✅ [CHANNEL] {t} Pg:{pg} Returning:{len(results)}")
+        
+        return JSONResponse(content=results, headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache"
+        })
 
-    # 如果是关键词搜索 q，则走实时聚合接口（兼容 type_id）
+    # 路径 B：关键词搜索 -> 走实时聚合接口
     sources = get_active_sources()
     type_id = None
     if t:
