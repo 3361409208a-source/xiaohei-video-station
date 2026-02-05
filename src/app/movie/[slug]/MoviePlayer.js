@@ -82,9 +82,7 @@ export default function MoviePlayer({ id, src, initialUrl }) {
       <header className="site-header" style={{background: '#111'}}>
         <div className="container" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%'}}>
           <Link href="/" className="logo-area">
-            <div className="logo-icon">
-               <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"></path></svg>
-            </div>
+            <img src="/logo.png" alt="logo" className="logo-img" />
             <div className="logo-text">小黑<span>搜影</span></div>
           </Link>
           
