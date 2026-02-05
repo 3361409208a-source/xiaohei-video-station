@@ -9,7 +9,9 @@ function ChannelContent({ paramsPromise }) {
   const router = useRouter();
   
   const type = decodeURIComponent(params.type);
-  const page = parseInt(searchParams.get('pg') || '1');
+  // 核心核心核心：强制从 URL 的 pg 参数中读取页码，这是唯一真理
+  const urlPg = searchParams.get('pg');
+  const page = parseInt(urlPg || '1');
   
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -34,17 +36,13 @@ function ChannelContent({ paramsPromise }) {
     setLoading(true);
     window.scrollTo(0, 0);
     
-    // 采用 URL 驱动的分页，并强行打桩验证
-    const fetchUrl = `/api/search?t=${encodeURIComponent(type)}&pg=${page}&cache_bust=${Date.now()}`;
-    console.log('🌚 黑煤球正在请求:', fetchUrl);
-    
-    fetch(fetchUrl, {
-      cache: 'no-store',
-      headers: { 'Pragma': 'no-cache' }
-    })
+    // 加上时间戳和显式的 pg 参数，打死缓存
+    const apiCall = `/api/search?t=${encodeURIComponent(type)}&pg=${page}&v=${Date.now()}`;
+    console.log('🌚 [CLIENT DEBUG] 发起 API 请求:', apiCall);
+
+    fetch(apiCall, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
-        // 如果后端返回了调试信息或为空，说明逻辑通了
         setResults(data);
         setLoading(false);
       })
@@ -52,7 +50,7 @@ function ChannelContent({ paramsPromise }) {
         setResults([]);
         setLoading(false);
       });
-  }, [type, page]);
+  }, [type, page]); // 只要 type 或 URL 里的 page 变了，必触发请求
 
   const handleSearch = () => {
     if (!query.trim()) return;
@@ -61,7 +59,12 @@ function ChannelContent({ paramsPromise }) {
 
   const changePage = (offset) => {
     const newPage = Math.max(1, page + offset);
+    // 改变 URL 路径是最高效的触发重新渲染的方式
     router.push(`/channel/${encodeURIComponent(type)}?pg=${newPage}`);
+  };
+
+  const forceRefresh = () => {
+    window.location.reload();
   };
 
   return (
@@ -108,21 +111,32 @@ function ChannelContent({ paramsPromise }) {
       </section>
 
       <main className="container" style={{ flex: 1 }}>
-        <div className="section-header">
-          <div className="section-title">最新{type} <span style={{fontSize: '14px', color: '#ff4d4f'}}>(第 {page} 页)</span></div>
-          <div className="view-all" style={{ opacity: 0.5 }}>本页已加载 {results.length} 部影片</div>
+        <div className="section-header" style={{ alignItems: 'flex-end' }}>
+          <div>
+            <div className="section-title">最新{type} <span style={{fontSize: '14px', color: '#ff4d4f', fontWeight: 'bold'}}>(第 {page} 页)</span></div>
+            <div style={{ fontSize: '12px', opacity: 0.5, marginTop: '5px' }}>如果内容未更新，请尝试【暴力刷新】</div>
+          </div>
+          <button onClick={forceRefresh} style={{ 
+            padding: '6px 12px', 
+            fontSize: '12px', 
+            backgroundColor: '#333', 
+            color: '#eee', 
+            border: 'none', 
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}>暴力刷新数据</button>
         </div>
 
         {loading ? (
           <div className="loading-con" style={{ minHeight: '300px' }}>
             <div className="spinner"></div>
-            <div className="loading-text">黑煤球正在为你翻页...</div>
+            <div className="loading-text">黑煤球正在从后端【第 {page} 页】搬运数据...</div>
           </div>
         ) : (
           <>
             <div className="movie-grid">
               {results.map((item, idx) => (
-                <Link key={`${item.id}-${item.source_name}-${idx}`} href={`/movie/${encodeURIComponent(`${item.title}-${item.id}`)}?src=${encodeURIComponent(item.source_name)}`} className="movie-card">
+                <Link key={`${item.id}-${idx}`} href={`/movie/${encodeURIComponent(`${item.title}-${item.id}`)}?src=${encodeURIComponent(item.source_name)}`} className="movie-card">
                   <div className="movie-poster-wrap">
                     <img className="movie-poster-img" src={item.poster} alt={item.title} onError={(e) => e.target.src = 'https://via.placeholder.com/400x600?text=No+Poster'} />
                     <div className="movie-quality-tag">{item.source_tip || '高清'}</div>
@@ -142,8 +156,7 @@ function ChannelContent({ paramsPromise }) {
             ) : (
               <div style={{ textAlign: 'center', padding: '100px 0', opacity: 0.3 }}>
                 <h3>该页暂无内容</h3>
-                <p>可能是已经滑到底部了，或者服务器正在更新索引。</p>
-                <button className="page-btn" onClick={() => router.push(`/channel/${type}?pg=1`)}>回到第 1 页</button>
+                <p>可能是网络波动，请尝试【暴力刷新】</p>
               </div>
             )}
           </>

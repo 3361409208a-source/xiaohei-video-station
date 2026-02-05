@@ -136,6 +136,8 @@ def get_full_data():
 @app.get("/api/search")
 def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
     from fastapi.responses import JSONResponse
+    # ⚠️ 大神级实时监控：看看到底收到页码没！
+    print(f"🌚 [DEBUG] REQUEST RECEIVED: t={t}, q={q}, pg={pg}")
     
     # 路径 A：频道/分类浏览 -> 强制走本地缓存库
     if t and not q:
