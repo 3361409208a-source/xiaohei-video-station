@@ -36,6 +36,10 @@ html, body {
   width: 100%;
 }
 
+a {
+  text-decoration: none !important;
+}
+
 /* Header Styles */
 .site-header {
   height: var(--header-height);
@@ -387,6 +391,9 @@ html, body {
 }
 
 @media (max-width: 768px) {
+  .logo-text { display: none; }
+  .logo-area { gap: 0; }
+  
   .site-header { height: auto; padding: 12px 0 10px; }
   .header-inner { flex-direction: column; align-items: center; gap: 12px; }
   .nav-links {

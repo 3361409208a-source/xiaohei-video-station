@@ -12,7 +12,6 @@ export default function MoviePlayer({ id, src, initialUrl }) {
   const [config, setConfig] = useState({ site_name: '小黑搜影', footer: '' });
 
   useEffect(() => {
-    // 加载后台配置
     fetch('/api/config')
       .then(res => res.json())
       .then(data => setConfig(data))
@@ -28,7 +27,6 @@ export default function MoviePlayer({ id, src, initialUrl }) {
         const data = await res.json();
         setDetail(data);
 
-        // 更新页面标题，优先使用后台设置的站名
         if (data.title) {
           document.title = `${data.title}在线免费观看 - ${config.site_name}`;
         }
@@ -82,10 +80,28 @@ export default function MoviePlayer({ id, src, initialUrl }) {
   return (
     <div className="page-wrapper" style={{minHeight:'100vh', display:'flex', flexDirection:'column', overflowX: 'hidden', background: '#000'}}>
       <header className="site-header" style={{background: '#111'}}>
-        <div className="container" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-          <Link href="/" className="logo">{config.site_name}</Link>
-          <div style={{fontSize: '0.9rem', color: '#888'}}>{detail?.title || '正在加载...'}</div>
-          <Link href="/" style={{color: '#ccc', textDecoration: 'none', fontSize: '0.8rem'}}>返回搜索</Link>
+        <div className="container" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%'}}>
+          <Link href="/" className="logo-area">
+            <div className="logo-icon">
+               <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"></path></svg>
+            </div>
+            <div className="logo-text">小黑<span>搜影</span></div>
+          </Link>
+          
+          <div style={{
+            fontSize: '0.9rem', 
+            color: '#888', 
+            flex: 1, 
+            textAlign: 'center', 
+            padding: '0 15px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}>
+            {detail?.title || '正在加载...'}
+          </div>
+
+          <Link href="/" style={{color: '#ccc', fontSize: '0.8rem', whiteSpace: 'nowrap', flexShrink: 0}}>返回搜索</Link>
         </div>
       </header>
 
@@ -122,8 +138,7 @@ export default function MoviePlayer({ id, src, initialUrl }) {
                       display: '-webkit-box',
                       WebkitLineClamp: isDescCollapsed ? 2 : 'unset',
                       WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      transition: 'all 0.3s'
+                      overflow: 'hidden'
                     }}
                    >
                      <strong>简介：</strong>{detail.description || '暂无简介'}
