@@ -180,11 +180,17 @@ def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
         end = start + page_size
         results = filtered[start:end]
         
-        print(f"✅ [CHANNEL] {t} Pg:{pg} Returning:{len(results)}")
+        # 🧪 [超级调试]：给标题加上页码水印，如果是第 2 页，标题后面会显示 [P2]
+        # 这能彻底验证后端到底给没给你返回新数据
+        for item in results:
+            item["title"] = f"{item['title']} [P{pg}]"
+        
+        print(f"✅ [CHANNEL] {t} Pg:{pg} Range:{start}-{end} FirstTitle:{results[0]['title'] if results else 'Empty'}")
         
         return JSONResponse(content=results, headers={
-            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-            "Pragma": "no-cache"
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, proxy-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
         })
 
     # 路径 B：关键词搜索 -> 走实时聚合接口
