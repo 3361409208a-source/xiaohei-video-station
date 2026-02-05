@@ -256,6 +256,36 @@ def get_trends(x_admin_token: str = Header(None)):
     verify_admin(x_admin_token)
     return load_json(TRENDS_FILE, {})
 
+@app.post("/api/admin/test-source")
+def test_source(data: dict = Body(...), x_admin_token: str = Header(None)):
+    verify_admin(x_admin_token)
+    api_url = data.get("api")
+    if not api_url:
+        return {"status": "error", "message": "Missing API URL"}
+    
+    start_time = time.time()
+    try:
+        # 尝试获取第一页数据，测试连通性
+        test_url = f"{api_url}?ac=list&pg=1"
+        res = requests.get(test_url, timeout=10)
+        latency = round((time.time() - start_time) * 1000, 2)
+        
+        if res.status_code == 200:
+            try:
+                json_data = res.json()
+                item_count = len(json_data.get("list", []))
+                return {
+                    "status": "success", 
+                    "latency": f"{latency}ms", 
+                    "message": f"连接成功，吐出 {item_count} 条数据"
+                }
+            except:
+                return {"status": "error", "message": "解析 JSON 失败，可能非标准接口"}
+        else:
+            return {"status": "error", "message": f"请求失败，状态码: {res.status_code}"}
+    except Exception as e:
+        return {"status": "error", "message": f"连接超时或失败: {str(e)}"}
+
 @app.get("/api/sitemap-info")
 def get_sitemap_info():
     return {"total": len(get_full_data()), "chunk_size": 5000}

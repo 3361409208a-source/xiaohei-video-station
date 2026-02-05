@@ -12,6 +12,7 @@ export default function AdminClient({ initialStats }) {
   const [collectorStatus, setCollectorStatus] = useState({ log: '', stats: { total: 0, size: '0 MB', last_modified: 'N/A' } });
   const [siteConfig, setSiteConfig] = useState({ site_name: '', notice: '', footer: '', theme: '' });
   const [sources, setSources] = useState([]);
+  const [testResults, setTestResults] = useState({}); // 存储各源站测试结果
   const [trends, setTrends] = useState({});
   const [currentMovies, setCurrentMovies] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('电影');
@@ -96,6 +97,24 @@ export default function AdminClient({ initialStats }) {
   const fetchTrends = async () => {
     const res = await apiFetch('/api/admin/trends');
     if (res?.ok) setTrends(await res.json());
+  };
+
+  const testSource = async (idx, api) => {
+    setTestResults(prev => ({ ...prev, [idx]: { loading: true } }));
+    try {
+      const res = await apiFetch('/api/admin/test-source', {
+        method: 'POST',
+        body: JSON.stringify({ api })
+      });
+      if (res?.ok) {
+        const data = await res.json();
+        setTestResults(prev => ({ ...prev, [idx]: { ...data, loading: false } }));
+      } else {
+        setTestResults(prev => ({ ...prev, [idx]: { status: 'error', message: '请求失败', loading: false } }));
+      }
+    } catch (e) {
+      setTestResults(prev => ({ ...prev, [idx]: { status: 'error', message: e.message, loading: false } }));
+    }
   };
 
   // 5. 获取影片列表
@@ -238,8 +257,19 @@ export default function AdminClient({ initialStats }) {
                       <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: src.active ? '#10b981' : '#ef4444', borderRadius: '4px' }}>{src.active ? '启用中' : '已停用'}</span>
                     </div>
                     <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.4rem' }}>{src.api}</div>
+                    {testResults[idx] && (
+                      <div style={{ marginTop: '0.8rem', fontSize: '0.8rem', color: testResults[idx].status === 'success' ? '#10b981' : '#ef4444', background: 'rgba(0,0,0,0.2)', padding: '5px 10px', borderRadius: '4px', display: 'inline-block' }}>
+                        {testResults[idx].loading ? '⚡ 正在探测连通性...' : (
+                          <>
+                            {testResults[idx].status === 'success' ? '✅ ' : '❌ '}
+                            {testResults[idx].message} {testResults[idx].latency && `(${testResults[idx].latency})`}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button onClick={() => testSource(idx, src.api)} style={{ padding: '0.4rem 0.8rem', borderRadius: '4px', border: 'none', cursor: 'pointer', background: '#38bdf8', color: '#fff' }}>测试</button>
                     <button onClick={() => {
                       const newSources = [...sources];
                       newSources[idx].active = !newSources[idx].active;
