@@ -135,7 +135,6 @@ def get_full_data():
 @app.get("/api/search")
 def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
     from fastapi.responses import JSONResponse
-    print(f"🔍 收到请求: q={q}, t={t}, pg={pg}")
     
     # 核心修正：如果是频道/分类查询，强行锁定从本地全量库读
     if t and not q:
@@ -145,9 +144,12 @@ def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
         filtered = []
         seen_titles = set()
         
+        # 强制按 update_time 排序，如果没有则按 ID 排序，确保物理位置绝对固定
+        all_data.sort(key=lambda x: (str(x.get("update_time", "")), str(x.get("id", ""))), reverse=True)
+        
         for item in all_data:
-            cat = item.get("category", "")
-            title = item.get("title", "")
+            cat = str(item.get("category", ""))
+            title = str(item.get("title", ""))
             
             # 唯一性校验
             unique_key = f"{title}_{cat}"
@@ -166,6 +168,8 @@ def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
                 # 补齐字段
                 item["source_name"] = item.get("source", "默认源")
                 item["source_tip"] = item.get("tip", "高清")
+                # DEBUG 打桩：让前端能看到后端吐出来的真实页码
+                item["_backend_pg"] = pg
                 filtered.append(item)
                 seen_titles.add(unique_key)
         
@@ -175,9 +179,14 @@ def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
         end = start + page_size
         
         results = filtered[start:end]
-        print(f"✅ 返回分类 {t} 第 {pg} 页, 结果数: {len(results)}")
-        # 强制不缓存
-        return JSONResponse(content=results, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
+        
+        # 强制禁用一切缓存，确保翻页即刻生效
+        headers = {
+            "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+        return JSONResponse(content=results, headers=headers)
 
     # 如果是关键词搜索 q，则走实时聚合接口（兼容 type_id）
     sources = get_active_sources()

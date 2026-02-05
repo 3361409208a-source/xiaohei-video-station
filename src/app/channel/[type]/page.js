@@ -1,14 +1,19 @@
 'use client';
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function ChannelPage({ params: paramsPromise }) {
+function ChannelContent({ paramsPromise }) {
   const params = use(paramsPromise);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
   const type = decodeURIComponent(params.type);
+  const page = parseInt(searchParams.get('pg') || '1');
+  
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
   const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '' });
 
   const categories = [
@@ -21,20 +26,21 @@ export default function ChannelPage({ params: paramsPromise }) {
     { name: '纪录片', path: '/channel/纪录片' }
   ];
 
-  const hotSearches = ['繁花', '沙丘 2', '周处除三害', '葬送的芙莉莲'];
-
   useEffect(() => {
     fetch('/api/config').then(res => res.json()).then(data => setConfig(data));
   }, []);
 
   useEffect(() => {
     setLoading(true);
-    // 强制滚动到最顶部
     window.scrollTo(0, 0);
     
-    fetch(`/api/search?t=${encodeURIComponent(type)}&pg=${page}&v=${Date.now()}`)
+    // 采用 URL 驱动的分页，并强制拉取最新数据
+    fetch(`/api/search?t=${encodeURIComponent(type)}&pg=${page}&v=${Date.now()}`, {
+      cache: 'no-store'
+    })
       .then(res => res.json())
       .then(data => {
+        // 如果后端返回了调试信息或为空，说明逻辑通了
         setResults(data);
         setLoading(false);
       })
@@ -44,13 +50,14 @@ export default function ChannelPage({ params: paramsPromise }) {
       });
   }, [type, page]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [type]);
-
   const handleSearch = () => {
     if (!query.trim()) return;
     window.location.href = `/?q=${encodeURIComponent(query)}`;
+  };
+
+  const changePage = (offset) => {
+    const newPage = Math.max(1, page + offset);
+    router.push(`/channel/${encodeURIComponent(type)}?pg=${newPage}`);
   };
 
   return (
@@ -75,7 +82,6 @@ export default function ChannelPage({ params: paramsPromise }) {
         </div>
       </header>
 
-      {/* 保持搜索区，防止页面看起来空洞 */}
       <section className="hero-section" style={{ padding: '40px 0 20px' }}>
         <div className="container">
           <div className="search-container">
@@ -99,20 +105,20 @@ export default function ChannelPage({ params: paramsPromise }) {
 
       <main className="container" style={{ flex: 1 }}>
         <div className="section-header">
-          <div className="section-title">最新{type} <span style={{fontSize: '14px', opacity: 0.5}}>(第 {page} 页)</span></div>
-          <div className="view-all" style={{ opacity: 0.5 }}>共 {results.length} 条资源</div>
+          <div className="section-title">最新{type} <span style={{fontSize: '14px', color: '#ff4d4f'}}>(第 {page} 页)</span></div>
+          <div className="view-all" style={{ opacity: 0.5 }}>本页已加载 {results.length} 部影片</div>
         </div>
 
         {loading ? (
           <div className="loading-con" style={{ minHeight: '300px' }}>
             <div className="spinner"></div>
-            <div className="loading-text">正在加载精彩内容...</div>
+            <div className="loading-text">黑煤球正在为你翻页...</div>
           </div>
         ) : (
           <>
             <div className="movie-grid">
-              {results.map((item) => (
-                <Link key={`${item.id}-${item.source_name}`} href={`/movie/${encodeURIComponent(`${item.title}-${item.id}`)}?src=${encodeURIComponent(item.source_name)}`} className="movie-card">
+              {results.map((item, idx) => (
+                <Link key={`${item.id}-${item.source_name}-${idx}`} href={`/movie/${encodeURIComponent(`${item.title}-${item.id}`)}?src=${encodeURIComponent(item.source_name)}`} className="movie-card">
                   <div className="movie-poster-wrap">
                     <img className="movie-poster-img" src={item.poster} alt={item.title} onError={(e) => e.target.src = 'https://via.placeholder.com/400x600?text=No+Poster'} />
                     <div className="movie-quality-tag">{item.source_tip || '高清'}</div>
@@ -125,12 +131,16 @@ export default function ChannelPage({ params: paramsPromise }) {
 
             {results.length > 0 ? (
               <div className="pagination">
-                <button className="page-btn" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>上一页</button>
+                <button className="page-btn" disabled={page <= 1} onClick={() => changePage(-1)}>上一页</button>
                 <div className="page-info">第 {page} 页</div>
-                <button className="page-btn" onClick={() => setPage(p => p + 1)}>下一页</button>
+                <button className="page-btn" onClick={() => changePage(1)}>下一页</button>
               </div>
             ) : (
-              <div style={{ textAlign: 'center', padding: '100px 0', opacity: 0.3 }}>该页暂无内容</div>
+              <div style={{ textAlign: 'center', padding: '100px 0', opacity: 0.3 }}>
+                <h3>该页暂无内容</h3>
+                <p>可能是已经滑到底部了，或者服务器正在更新索引。</p>
+                <button className="page-btn" onClick={() => router.push(`/channel/${type}?pg=1`)}>回到第 1 页</button>
+              </div>
             )}
           </>
         )}
@@ -140,5 +150,13 @@ export default function ChannelPage({ params: paramsPromise }) {
         <div className="container">{config.footer || `© 2026 ${config.site_name}`}</div>
       </footer>
     </div>
+  );
+}
+
+export default function ChannelPage({ params: paramsPromise }) {
+  return (
+    <Suspense fallback={<div className="loading-con"><div className="spinner"></div></div>}>
+      <ChannelContent paramsPromise={paramsPromise} />
+    </Suspense>
   );
 }
