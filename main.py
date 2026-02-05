@@ -285,10 +285,40 @@ def get_trends(x_admin_token: str = Header(None)):
     verify_admin(x_admin_token)
     return load_json(TRENDS_FILE, {})
 
+@app.get("/api/sitemap-info")
+def get_sitemap_info():
+    """返回全量数据的统计信息，供 Next.js 计算分卷"""
+    if os.path.exists(SITEMAP_DATA):
+        try:
+            with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return {"total": len(data), "chunk_size": 5000}
+        except: pass
+    return {"total": 0, "chunk_size": 5000}
+
 @app.get("/api/sitemap-raw")
-def get_sitemap_raw():
-    """提供给 Next.js 生成 Sitemap 用的全量接口"""
-    return FileResponse(SITEMAP_DATA)
+def get_sitemap_raw(chunk: int = Query(None)):
+    """按需返回 Sitemap 原始数据，支持分页/分卷以节省带宽"""
+    if not os.path.exists(SITEMAP_DATA):
+        return []
+        
+    try:
+        with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
+            all_data = json.load(f)
+            
+        if chunk is None:
+            # 如果不传参数，返回前 2000 条作为最新卷
+            return all_data[:2000]
+        
+        # 返回指定分卷（每卷 5000 条）
+        if chunk == 0:
+            return all_data[:2000]
+            
+        start = (chunk - 1) * 5000
+        end = start + 5000
+        return all_data[start:end]
+    except:
+        return []
 
 if __name__ == "__main__":
     import uvicorn

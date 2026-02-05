@@ -2,11 +2,12 @@ export async function generateSitemaps() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://xiaohei-video-station-production.up.railway.app';
   
   try {
-    const res = await fetch(`${API_URL}/api/sitemap-raw`, { next: { revalidate: 3600 } });
+    // 仅请求统计信息，不需要全量下载 11MB
+    const res = await fetch(`${API_URL}/api/sitemap-info`, { next: { revalidate: 3600 } });
     if (!res.ok) return [{ id: 0 }];
     
-    const movies = await res.json();
-    const totalChunks = Math.ceil(movies.length / 5000);
+    const info = await res.json();
+    const totalChunks = Math.ceil(info.total / info.chunk_size);
     
     const sitemaps = [{ id: 0 }];
     for (let i = 1; i <= totalChunks; i++) {
@@ -23,18 +24,11 @@ export default async function sitemap({ id }) {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://xiaohei-video-station-production.up.railway.app';
 
   try {
-    const res = await fetch(`${API_URL}/api/sitemap-raw`, { next: { revalidate: 3600 } });
+    // 按需请求指定分卷（约 1MB），大大降低 Vercel 负担
+    const res = await fetch(`${API_URL}/api/sitemap-raw?chunk=${id}`, { next: { revalidate: 3600 } });
     if (!res.ok) return [];
     
-    const allMovies = await res.json();
-
-    let movies = [];
-    if (id === 0) {
-      movies = allMovies.slice(0, 2000);
-    } else {
-      const start = (id - 1) * 5000;
-      movies = allMovies.slice(start, start + 5000);
-    }
+    const movies = await res.json();
 
     return movies.map((movie) => ({
       url: `${baseUrl}/movie/${encodeURIComponent(`${movie.title}-${movie.id}`)}?src=${encodeURIComponent(movie.source)}`,
