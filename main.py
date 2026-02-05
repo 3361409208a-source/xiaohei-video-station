@@ -320,6 +320,16 @@ def get_sitemap_raw(chunk: int = Query(None)):
     except:
         return []
 
+@app.on_event("startup")
+async def startup_event():
+    """服务启动时，自动在后台开启一轮全量采集"""
+    print("🌚 大神提醒：服务已启动，正在后台自动同步 5 万条全量索引...")
+    try:
+        # 使用 Popen 启动，不阻塞主进程启动速度
+        subprocess.Popen([sys.executable, "build_sitemap_data.py"])
+    except Exception as e:
+        print(f"Startup collector failed: {e}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
