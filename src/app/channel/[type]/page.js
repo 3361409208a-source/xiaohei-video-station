@@ -99,8 +99,8 @@ export default function ChannelPage({ params: paramsPromise }) {
 
       <main className="container" style={{ flex: 1 }}>
         <div className="section-header">
-          <div className="section-title">最新{type}</div>
-          <div className="view-all" style={{ opacity: 0.5 }}>第 {page} 页</div>
+          <div className="section-title">最新{type} <span style={{fontSize: '14px', opacity: 0.5}}>(第 {page} 页)</span></div>
+          <div className="view-all" style={{ opacity: 0.5 }}>共 {results.length} 条资源</div>
         </div>
 
         {loading ? (

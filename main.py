@@ -112,59 +112,80 @@ def track_search(q):
     sorted_trends = dict(sorted(trends.items(), key=lambda item: item[1], reverse=True)[:100])
     save_json(TRENDS_FILE, sorted_trends)
 
+# 全局内存缓存，防止频繁读取大文件导致性能问题
+CACHED_DATA = []
+LAST_LOAD_TIME = 0
+
+def get_full_data():
+    global CACHED_DATA, LAST_LOAD_TIME
+    # 5分钟缓存一次，或者文件不存在则返回空
+    if not CACHED_DATA or (time.time() - LAST_LOAD_TIME > 300):
+        if os.path.exists(SITEMAP_DATA):
+            try:
+                with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
+                    CACHED_DATA = json.load(f)
+                    # 强行按更新时间倒序排序一次
+                    CACHED_DATA.sort(key=lambda x: str(x.get("update_time", "")), reverse=True)
+                    LAST_LOAD_TIME = time.time()
+                    print(f"🌚 大神系统：成功加载全量库 {len(CACHED_DATA)} 条数据")
+            except Exception as e:
+                print(f"Load error: {e}")
+    return CACHED_DATA
+
 @app.get("/api/search")
 def search(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
-    # 核心修正：如果是频道/分类查询，强行锁定从本地全量库读，禁止 fallback 到搜索
+    from fastapi.responses import JSONResponse
+    print(f"🔍 收到请求: q={q}, t={t}, pg={pg}")
+    
+    # 核心修正：如果是频道/分类查询，强行锁定从本地全量库读
     if t and not q:
-        if not os.path.exists(SITEMAP_DATA):
-            return []
+        all_data = get_full_data()
+        if not all_data: return []
+        
+        filtered = []
+        seen_titles = set()
+        
+        for item in all_data:
+            cat = item.get("category", "")
+            title = item.get("title", "")
             
-        try:
-            with open(SITEMAP_DATA, "r", encoding="utf-8") as f:
-                all_data = json.load(f)
+            # 唯一性校验
+            unique_key = f"{title}_{cat}"
+            if unique_key in seen_titles: continue
             
-            filtered = []
-            seen_titles = set()
-            
-            # 1. 强制按更新时间倒序排序，解决分页内容重复的问题
-            all_data.sort(key=lambda x: str(x.get("update_time", "")), reverse=True)
-            
-            for item in all_data:
-                cat = item.get("category", "")
-                title = item.get("title", "")
-                
-                # 唯一性校验（标题 + 类别）
-                unique_key = f"{title}_{cat}"
-                if unique_key in seen_titles: continue
-                
-                is_match = False
-                if t == "短剧":
-                    if "短剧" in cat or "短剧" in title: is_match = True
-                elif t == "电视剧":
-                    # 电视剧排除掉短剧，防止分类比例失衡
-                    if ("剧" in cat or "电视" in cat) and "短剧" not in cat and "短剧" not in title:
-                        is_match = True
-                elif t in cat:
+            is_match = False
+            if t == "短剧":
+                if "短剧" in cat or "短剧" in title: is_match = True
+            elif t == "电视剧":
+                if ("剧" in cat or "电视" in cat) and "短剧" not in cat and "短剧" not in title:
                     is_match = True
-                
-                if is_match:
-                    # 补齐字段
-                    item["source_name"] = item.get("source", "默认源")
-                    item["source_tip"] = item.get("tip", "高清")
-                    filtered.append(item)
-                    seen_titles.add(unique_key)
+            elif t in cat:
+                is_match = True
             
-            # 2. 精准物理切片
-            page_size = 30
-            start = (pg - 1) * page_size
-            end = start + page_size
-            return filtered[start:end]
-        except Exception as e:
-            print(f"Read sitemap data failed: {e}")
-            return []
+            if is_match:
+                # 补齐字段
+                item["source_name"] = item.get("source", "默认源")
+                item["source_tip"] = item.get("tip", "高清")
+                filtered.append(item)
+                seen_titles.add(unique_key)
+        
+        # 精准物理切片
+        page_size = 30
+        start = (pg - 1) * page_size
+        end = start + page_size
+        
+        results = filtered[start:end]
+        print(f"✅ 返回分类 {t} 第 {pg} 页, 结果数: {len(results)}")
+        # 强制不缓存
+        return JSONResponse(content=results, headers={"Cache-Control": "no-store, no-cache, must-revalidate"})
 
-    # 只有带了关键词 q 或者是没有分类 t 时，才走实时搜索聚合接口
+    # 如果是关键词搜索 q，则走实时聚合接口（兼容 type_id）
     sources = get_active_sources()
+    type_id = None
+    if t:
+        # 尝试匹配子分类 ID（如电影=1, 电视剧=2 等，根据 Maccms 标准）
+        mapping = {"电影": 1, "电视剧": 2, "综艺": 3, "动漫": 4}
+        type_id = mapping.get(t)
     if q: track_search(q)
     
     unique_results = {}
