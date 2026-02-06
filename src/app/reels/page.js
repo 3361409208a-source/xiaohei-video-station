@@ -4,9 +4,9 @@ import { useRouter, useSearchParams, useParams } from 'next/navigation';
 import Link from 'next/link';
 
 // --- 子组件：移动端单条解说刷片器 ---
-function MobileReelItem({ video, isActive, onPlayOriginal }) {
+function MobileReelItem({ video, isActive }) {
+    const router = useRouter();
     const [detail, setDetail] = useState(null);
-    const [isOriginal, setIsOriginal] = useState(false);
     const playerRef = useRef(null);
     const dp = useRef(null);
 
@@ -49,28 +49,14 @@ function MobileReelItem({ video, isActive, onPlayOriginal }) {
         };
     }, [isActive, detail]);
 
-    // 处理内部切正片
-    const handleLocalPlayOriginal = async () => {
+    const handleMobilePlayOriginal = () => {
         const cleanT = video.title.replace('[电影解说]', '').replace('电影解说', '').trim();
-        const res = await fetch(`/api/search?q=${encodeURIComponent(cleanT)}`);
-        const searchData = await res.json();
-        const film = searchData.find(i => !i.category.includes('解说') && !i.title.includes('解说'));
-        
-        if (film) {
-            const detailRes = await fetch(`/api/detail?id=${film.id}&src=${encodeURIComponent(film.source_name || film.source)}`);
-            const filmDetail = await detailRes.json();
-            if (filmDetail) {
-                setDetail(filmDetail);
-                setIsOriginal(true);
-            }
-        } else {
-            alert("暂无正片资源");
-        }
+        router.push(`/?q=${encodeURIComponent(cleanT)}`);
     };
 
     return (
         <div className="mobile-reel-unit">
-            <div className="player-area">
+            <div className="player-area" onClick={() => dp.current?.toggle()}>
                 <div ref={playerRef} style={{ width:'100%', height:'100%' }}></div>
                 {!detail && isActive && <div className="loading-tip">🌚 正在接入信号...</div>}
                 {!isActive && (
@@ -82,11 +68,11 @@ function MobileReelItem({ video, isActive, onPlayOriginal }) {
 
             <div className="ui-overlay">
                 <div className="info-box">
-                    <h3>{isOriginal ? "【正片】" : ""}{video.title.replace('[电影解说]', '')}</h3>
+                    <h3>{video.title.replace('[电影解说]', '')}</h3>
                     <p>{video.category} · {video.year}</p>
                 </div>
                 <div className="side-actions">
-                    <div className="m-btn" onClick={handleLocalPlayOriginal}>
+                    <div className="m-btn" onClick={handleMobilePlayOriginal}>
                         <div className="icon-circ highlight">⚡</div>
                         <span>正片</span>
                     </div>
@@ -113,6 +99,10 @@ function MobileReelItem({ video, isActive, onPlayOriginal }) {
                 .icon-circ { width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; font-size: 22px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
                 .icon-circ.highlight { background: #e11d48; border-color: #e11d48; box-shadow: 0 0 15px rgba(225, 29, 72, 0.5); }
                 .m-btn span { font-size: 11px; font-weight: 600; }
+
+                /* 强制隐藏 DPlayer 自带的中心播放按钮，除非是暂停状态 */
+                :global(.dplayer-mobile-play-display) { display: none !important; }
+                :global(.dplayer-paused .dplayer-mobile-play-display) { display: block !important; }
             `}</style>
         </div>
     );
@@ -128,7 +118,6 @@ function PlayerContent() {
   const [allVideos, setAllVideos] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   
-  // PC 专有状态
   const [pcMainVideo, setPcMainVideo] = useState(null);
   const [pcRecs, setPcRecs] = useState([]);
   const [pcSearch, setPcSearch] = useState([]);
@@ -140,8 +129,6 @@ function PlayerContent() {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    
-    // 初始抓取资源
     const init = async () => {
         const rp = Math.floor(Math.random() * 10) + 1;
         const res = await fetch(`/api/search?t=解说&pg=${rp}`);
@@ -150,37 +137,30 @@ function PlayerContent() {
         setLoading(false);
     };
     init();
-
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // --- PC 端逻辑 ---
   useEffect(() => {
     if (isMobile) return;
     const slug = params?.slug ? decodeURIComponent(params.slug) : null;
     const id = slug ? slug.split('-').pop() : searchParams.get('id');
     const src = searchParams.get('src');
-
     if (!id) return;
-
     const loadPc = async () => {
         setSwitching(true);
         const res = await fetch(`/api/detail?id=${id}&src=${encodeURIComponent(src)}`);
         const data = await res.json();
         setPcMainVideo(data);
-        
         const cleanT = data.title.replace('[电影解说]','').replace('电影解说','').trim();
         fetch(`/api/search?q=${encodeURIComponent(cleanT)}`)
           .then(r => r.json())
           .then(sData => setPcSearch(sData.filter(i => !i.category.includes('解说'))));
-        
         setPcRecs(allVideos.filter(v => v.id !== id).slice(0, 6));
         setSwitching(false);
     };
     loadPc();
   }, [params, searchParams, isMobile, allVideos]);
 
-  // PC 播放器同步
   useEffect(() => {
     if (!isMobile && pcMainVideo?.episodes?.[0]?.url) {
         const url = pcMainVideo.episodes[0].url;
@@ -196,9 +176,8 @@ function PlayerContent() {
     }
   }, [pcMainVideo, isMobile]);
 
-  if (loading) return <div className="full-loading">🌚 正在打通资源通道...</div>;
+  if (loading) return <div className="full-loading">🌚 正在接入信号...</div>;
 
-  // --- 移动端视图 ---
   if (isMobile) {
     return (
         <div className="mobile-scroller" onScroll={(e) => {
@@ -216,7 +195,6 @@ function PlayerContent() {
     );
   }
 
-  // --- PC 端视图 ---
   return (
     <div className="pc-player-page">
       <header className="site-header">
@@ -236,7 +214,7 @@ function PlayerContent() {
         <div className="left-zone">
           <div className="video-viewport">
             <div ref={playerRef} style={{ width:'100%', height:'100%' }}></div>
-            {switching && <div className="overlay">🌚 正在加载资源...</div>}
+            {switching && <div className="overlay">🌚 正在秒切中...</div>}
           </div>
           <div className="meta-card">
              <div className="title-row">
@@ -248,9 +226,10 @@ function PlayerContent() {
                     {pcSearch.length > 0 && (
                         <button onClick={() => {
                             const film = pcSearch[0];
-                            router.push(`/reels/${encodeURIComponent(`${film.title}-${film.id}`)}?src=${encodeURIComponent(film.source_name || film.source)}`);
+                            dpInstance.current.switchVideo({ url: film.episodes?.[0]?.url || '', type: 'hls' });
+                            setPcMainVideo(prev => ({...prev, title: film.title}));
                         }} className="premium-flash-btn">
-                            <span className="icon">⚡</span><span>观看正片</span><div className="btn-glow"></div>
+                            <span className="icon">⚡</span><span>直接播放正片</span><div className="btn-glow"></div>
                         </button>
                     )}
                 </div>
@@ -264,14 +243,18 @@ function PlayerContent() {
                     <h3>相关正片资源 ({pcSearch.length})</h3>
                     <div className="f-grid">
                         {pcSearch.map(f => (
-                            <Link key={f.id} href={`/reels/${encodeURIComponent(`${f.title}-${f.id}`)}?src=${encodeURIComponent(f.source_name || f.source)}`} className="f-card">
+                            <div key={f.id} onClick={() => {
+                                fetch(`/api/detail?id=${f.id}&src=${encodeURIComponent(f.source_name || f.source)}`)
+                                  .then(r => r.json()).then(d => setPcMainVideo(d));
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }} className="f-card">
                                 <img src={f.poster} />
                                 <div className="f-info">
                                     <div className="f-title">{f.title}</div>
                                     <div className="f-meta">{f.year} · {f.source_name || f.source}</div>
                                 </div>
                                 <div className="f-btn">立即播放</div>
-                            </Link>
+                            </div>
                         ))}
                     </div>
                  </div>
@@ -306,7 +289,7 @@ function PlayerContent() {
         .desc-box p { line-height: 1.8; color: #a1a1aa; font-size: 14px; }
         .related-films { margin-top: 40px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 30px; }
         .f-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 20px; }
-        .f-card { background: rgba(255,255,255,0.02); padding: 12px; border-radius: 12px; display: flex; align-items: center; gap: 15px; text-decoration: none; color: inherit; }
+        .f-card { background: rgba(255,255,255,0.02); padding: 12px; border-radius: 12px; display: flex; align-items: center; gap: 15px; text-decoration: none; color: inherit; cursor: pointer; }
         .f-card img { width: 50px; aspect-ratio: 2/3; border-radius: 4px; object-fit: cover; }
         .f-info { flex: 1; }
         .f-title { font-weight: 700; font-size: 14px; }
