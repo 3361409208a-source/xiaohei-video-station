@@ -5,5 +5,10 @@
   {"name": "极速资源", "api": "https://jszyapi.com/api.php/provide/vod/at/json/", "tip": "秒开", "active": true},
   {"name": "百度资源", "api": "https://api.apibdzy.com/api.php/provide/vod/at/json/", "tip": "资源多", "active": true},
   {"name": "红牛专线", "api": "https://www.hongniuzy2.com/api.php/provide/vod/from/hnm3u8/at/json/", "tip": "专线", "active": true},
-  {"name": "索尼资源", "api": "https://suoniapi.com/api.php/provide/vod/from/snm3u8/at/json/", "tip": "高清", "active": true}
+  {"name": "索尼资源", "api": "https://suoniapi.com/api.php/provide/vod/from/snm3u8/at/json/", "tip": "高清", "active": true},
+  {"name": "豪华资源", "api": "https://hhzyapi.com/api.php/provide/vod/at/json/", "tip": "豪华", "active": true},
+  {"name": "金鹰资源", "api": "https://jyzyapi.com/api.php/provide/vod/at/json/", "tip": "蓝光", "active": true},
+  {"name": "非凡资源", "api": "http://cj.ffzyapi.com/api.php/provide/vod/at/json/", "tip": "非凡", "active": true},
+  {"name": "暴风资源", "api": "https://bfzyapi.com/api.php/provide/vod/at/json/", "tip": "强力", "active": true},
+  {"name": "飘零资源", "api": "https://p2100.net/api.php/provide/vod/at/json/", "tip": "冷门", "active": true}
 ]
