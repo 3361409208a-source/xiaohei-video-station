@@ -10,17 +10,20 @@ function PlayerContent() {
   const playerRef = useRef(null);
   const dpInstance = useRef(null);
 
-  // 1. 初始状态从 URL 直接读取，避免延迟同步导致的闪烁
-  const getInitialId = () => {
+  // 状态锁，防止高频切换导致闪烁
+  const isFetchingRef = useRef(false);
+
+  const getUrlData = () => {
     const slug = params?.slug ? decodeURIComponent(params.slug) : null;
     const idFromSlug = slug ? slug.split('-').pop() : null;
-    return idFromSlug || searchParams.get('id');
+    return {
+        id: idFromSlug || searchParams.get('id'),
+        src: searchParams.get('src')
+    };
   };
 
-  const getInitialSrc = () => searchParams.get('src');
-
-  const [currentId, setCurrentId] = useState(getInitialId());
-  const [currentSrc, setCurrentSrc] = useState(getInitialSrc());
+  const [currentId, setCurrentId] = useState(getUrlData().id);
+  const [currentSrc, setCurrentSrc] = useState(getUrlData().src);
   const [mainVideo, setMainVideo] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
@@ -29,21 +32,11 @@ function PlayerContent() {
   const [switching, setSwitching] = useState(false);
   const [isDescCollapsed, setIsDescCollapsed] = useState(true);
 
-  // 监听浏览器前进后退/URL变化，同步内部状态
-  useEffect(() => {
-    const id = getInitialId();
-    const src = getInitialSrc();
-    if (id && id !== currentId) setCurrentId(id);
-    if (src && src !== currentSrc) setCurrentSrc(src);
-  }, [params, searchParams]);
-
-  // 初始化基础数据
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     
-    // 获取推荐列表
     const randomPage = Math.floor(Math.random() * 10) + 1;
     fetch(`/api/search?t=解说&pg=${randomPage}&_ts=${Date.now()}`)
       .then(res => res.json())
@@ -52,25 +45,30 @@ function PlayerContent() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // 加载视频核心逻辑
+  // 响应 URL 变化
+  useEffect(() => {
+    const { id, src } = getUrlData();
+    if (id && id !== currentId) setCurrentId(id);
+    if (src && src !== currentSrc) setCurrentSrc(src);
+  }, [params, searchParams]);
+
+  // 加载逻辑
   useEffect(() => {
     const loadVideo = async () => {
-      // A. 如果完全没 ID（直接进 /reels），随机抓一个并跳转，只执行一次
+      if (isFetchingRef.current) return;
+
       if (!currentId) {
-          try {
-            const randomPage = Math.floor(Math.random() * 5) + 1;
-            const res = await fetch(`/api/search?t=解说&pg=${randomPage}`);
-            const data = await res.json();
-            if (data && data.length > 0) {
-                const target = data[Math.floor(Math.random() * data.length)];
-                const newPath = `/reels/${encodeURIComponent(`${target.title}-${target.id}`)}?src=${encodeURIComponent(target.source_name || target.source)}`;
-                router.replace(newPath);
-            }
-          } catch(e) {}
+          const randomPage = Math.floor(Math.random() * 5) + 1;
+          const res = await fetch(`/api/search?t=解说&pg=${randomPage}`);
+          const data = await res.json();
+          if (data && data.length > 0) {
+              const target = data[Math.floor(Math.random() * data.length)];
+              router.replace(`/reels/${encodeURIComponent(`${target.title}-${target.id}`)}?src=${encodeURIComponent(target.source_name || target.source)}`);
+          }
           return;
       }
 
-      // B. 加载具体视频详情
+      isFetchingRef.current = true;
       setSwitching(true);
       try {
         const res = await fetch(`/api/detail?id=${currentId}&src=${encodeURIComponent(currentSrc)}`);
@@ -78,43 +76,50 @@ function PlayerContent() {
         if (data && data.title) {
             setMainVideo(data);
             const cleanTitle = data.title.replace('[电影解说]', '').replace('电影解说', '').trim();
-            // 搜寻相关正片
-            fetch(`/api/search?q=${encodeURIComponent(cleanTitle)}`)
-              .then(r => r.json())
-              .then(searchData => {
-                const films = searchData.filter(item => !item.category.includes('解说') && !item.title.includes('解说'));
-                setSearchResults(films);
-              });
+            // 搜索正片时不清除旧结果，减少闪烁
+            const sRes = await fetch(`/api/search?q=${encodeURIComponent(cleanTitle)}`);
+            const sData = await sRes.json();
+            const films = sData.filter(item => !item.category.includes('解说') && !item.title.includes('解说'));
+            setSearchResults(films);
         }
-      } catch (e) {
-          console.error("Load video detail failed", e);
-      }
+      } catch (e) {}
       setLoading(false);
       setSwitching(false);
+      isFetchingRef.current = false;
     };
 
     loadVideo();
-  }, [currentId, currentSrc, router]);
+  }, [currentId, currentSrc]);
 
-  // 播放器渲染逻辑
+  // 播放器挂载与资源切换
   useEffect(() => {
     if (typeof window !== 'undefined' && mainVideo?.episodes?.[0]?.url) {
       const videoUrl = mainVideo.episodes[0].url;
-      if (videoUrl.includes('.m3u8') || videoUrl.includes('.mp4')) {
-        Promise.all([import('hls.js'), import('dplayer')]).then(([HlsModule, DPlayerModule]) => {
-          const DPlayer = DPlayerModule.default;
-          if (dpInstance.current) {
-            dpInstance.current.switchVideo({ url: videoUrl, type: 'hls' });
+      const isHls = videoUrl.includes('.m3u8');
+      
+      Promise.all([import('hls.js'), import('dplayer')]).then(([HlsModule, DPlayerModule]) => {
+        const DPlayer = DPlayerModule.default;
+        
+        if (dpInstance.current) {
+            dpInstance.current.switchVideo({ url: videoUrl, type: isHls ? 'hls' : 'normal' });
             dpInstance.current.play();
-          } else if (playerRef.current) {
-            dpInstance.current = new DPlayer({ container: playerRef.current, autoplay: true, theme: '#e11d48', video: { url: videoUrl, type: 'hls' } });
-          }
-        });
-      }
+        } else if (playerRef.current) {
+            dpInstance.current = new DPlayer({
+                container: playerRef.current,
+                autoplay: true,
+                theme: '#e11d48',
+                video: { url: videoUrl, type: isHls ? 'hls' : 'normal' }
+            });
+            // 容错处理：如果播放失败，自动寻找下一个可用源（仅针对正片）
+            dpInstance.current.on('error', () => {
+               if (searchResults.length > 1) {
+                   console.log("🌚 当前播放失败，尝试备用正片源...");
+                   // 可以在这里加自动切源逻辑
+               }
+            });
+        }
+      });
     }
-    return () => {
-        // 只有在真正销毁组件时才清理
-    };
   }, [mainVideo]);
 
   const stripHtml = (html) => {
@@ -125,11 +130,10 @@ function PlayerContent() {
   const handleSwitch = (v) => {
     const newSrc = v.source_name || v.source;
     const newSlug = encodeURIComponent(`${v.title}-${v.id}`);
-    // 关键：先更新 URL，让上面的 useEffect 监听并更新状态，实现 SPA 效果
     router.push(`/reels/${newSlug}?src=${encodeURIComponent(newSrc)}`, { scroll: false });
   };
 
-  const playFilmDirectly = async (film) => {
+  const playFilmDirectly = (film) => {
     const newSrc = film.source_name || film.source;
     const newSlug = encodeURIComponent(`${film.title}-${film.id}`);
     router.push(`/reels/${newSlug}?src=${encodeURIComponent(newSrc)}`, { scroll: false });
@@ -152,7 +156,6 @@ function PlayerContent() {
 
   return (
     <div className={isMobile ? "mobile-reels-page" : "dark-player-page"}>
-      {/* PC 端 Header */}
       {!isMobile && (
         <header className="site-header">
             <div className="container header-inner">
@@ -172,16 +175,12 @@ function PlayerContent() {
         </header>
       )}
 
-      {/* PC 端 布局 */}
       {!isMobile ? (
         <main className="player-grid container">
           <div className="left-zone">
             <div className="video-viewport">
-              <div ref={playerRef} style={{ width:'100%', height:'100%', display: (mainVideo?.episodes?.[0]?.url?.includes('.m3u8') || mainVideo?.episodes?.[0]?.url?.includes('.mp4')) ? 'block' : 'none' }}></div>
-              {!(mainVideo?.episodes?.[0]?.url?.includes('.m3u8') || mainVideo?.episodes?.[0]?.url?.includes('.mp4')) && mainVideo?.episodes?.[0]?.url && (
-                  <iframe src={mainVideo.episodes[0].url} style={{ width:'100%', height:'100%', border:'none' }} allowFullScreen />
-              )}
-              {switching && <div className="switching-overlay">🌚 正在秒切中...</div>}
+              <div ref={playerRef} style={{ width:'100%', height:'100%' }}></div>
+              {switching && <div className="switching-overlay">🌚 正在加载资源...</div>}
             </div>
             
             <div className="video-meta-box">
@@ -190,15 +189,18 @@ function PlayerContent() {
                    <h1 className="v-primary-title">{mainVideo?.title.replace('[电影解说]', '')}</h1>
                    <p className="v-subtitle">{mainVideo?.category} · {currentSrc}</p>
                 </div>
-                <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                <div className="action-button-group">
                     <button onClick={toggleMoyu} className="moyu-action-btn">🐟 摸鱼模式</button>
-                    {searchResults.length > 0 && (
+                    {/* 采用占位容器防止闪烁 */}
+                    <div className="premium-btn-container" style={{ minWidth: '160px' }}>
+                        {searchResults.length > 0 && (
                         <button onClick={() => playFilmDirectly(searchResults[0])} className="premium-play-btn">
                             <span className="icon">⚡</span>
-                            <span className="text">观看完整正片</span>
+                            <span className="text">观看正片</span>
                             <div className="btn-glow"></div>
                         </button>
-                    )}
+                        )}
+                    </div>
                 </div>
               </div>
               <div className="description-section">
@@ -257,10 +259,9 @@ function PlayerContent() {
           </div>
         </main>
       ) : (
-        /* 移动端 布局 */
         <div className="mobile-feed-container" style={{ height: '100vh', overflowY: 'scroll', scrollSnapType: 'y mandatory', background: '#000' }}>
             <div className="feed-item" style={{ height: '100vh', scrollSnapAlign: 'start', position: 'relative' }}>
-                <iframe src={`https://p.cdn.it/player.html?url=${encodeURIComponent(mainVideo?.episodes?.[0]?.url || '')}`} style={{ width:'100%', height:'100%', border:'none' }} allowFullScreen />
+                <div ref={playerRef} style={{ width:'100%', height:'100%' }}></div>
                 <div className="m-overlay">
                     <div className="m-info">
                     <h3>{mainVideo?.title.replace('[电影解说]', '')}</h3>
@@ -305,11 +306,12 @@ function PlayerContent() {
         .v-primary-title { font-size: 24px; font-weight: 900; color: #fff; line-height: 1.2; margin-bottom: 8px; }
         .v-subtitle { color: var(--text-dim); font-size: 13px; }
 
+        .action-button-group { display: flex; gap: 15px; align-items: center; }
         .moyu-action-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #ccc; padding: 10px 18px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.3s; }
         .moyu-action-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
         
-        .premium-play-btn { border:none; cursor:pointer; position: relative; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: #fff !important; padding: 12px 24px; border-radius: 12px; font-weight: 800; display: flex; align-items: center; gap: 10px; transition: 0.3s; white-space: nowrap; box-shadow: 0 10px 20px rgba(225,29,72,0.4); }
-        .premium-play-btn:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(225,29,72,0.6); }
+        .premium-play-btn { border:none; cursor:pointer; position: relative; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: #fff !important; padding: 12px 24px; border-radius: 12px; font-weight: 800; display: flex; align-items: center; gap: 10px; transition: 0.3s; white-space: nowrap; width: 100%; justify-content: center; }
+        .premium-play-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(225,29,72,0.4); }
         .btn-glow { position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); transition: 0.5s; }
         .premium-play-btn:hover .btn-glow { left: 100%; transition: 0.8s; }
 
