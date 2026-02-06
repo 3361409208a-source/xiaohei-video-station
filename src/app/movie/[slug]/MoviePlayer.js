@@ -123,6 +123,20 @@ export default function MoviePlayer({ id, src, initialUrl }) {
     };
   }, [currentUrl]);
 
+  // 摸鱼模式（画中画）
+  const toggleMoyu = () => {
+    if (dpInstance.current && dpInstance.current.video) {
+        if (document.pictureInPictureElement) {
+            document.exitPictureInPicture();
+        } else {
+            dpInstance.current.video.requestPictureInPicture().catch(err => {
+                console.error("Moyu failed", err);
+                alert("当前浏览器或视频源不支持摸鱼模式哦~");
+            });
+        }
+    }
+  };
+
   return (
     <div className="page-wrapper" style={{minHeight:'100vh', display:'flex', flexDirection:'column', overflowX: 'hidden', background: '#000'}}>
       <header className="site-header" style={{background: '#111'}}>
@@ -163,7 +177,26 @@ export default function MoviePlayer({ id, src, initialUrl }) {
             <div className="movie-info-card" style={{ padding: '15px', color: '#ccc', background: '#1a1a1a', marginTop: '10px', borderRadius: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <h1 style={{ color: '#fff', fontSize: '1.2rem', margin: '0 0 10px 0' }}>{detail.title}</h1>
-                {detail.remark && <span style={{ color: '#ec2d7a', fontSize: '0.85rem', fontWeight: '700' }}>{detail.remark}</span>}
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <button 
+                        onClick={toggleMoyu}
+                        style={{
+                            background: 'rgba(255,255,255,0.1)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            color: '#fff',
+                            padding: '4px 12px',
+                            borderRadius: '100px',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                        }}
+                    >
+                        <span>🐟</span> 摸鱼模式
+                    </button>
+                    {detail.remark && <span style={{ color: '#ec2d7a', fontSize: '0.85rem', fontWeight: '700' }}>{detail.remark}</span>}
+                </div>
               </div>
               
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px', fontSize: '0.8rem', opacity: 0.8 }}>

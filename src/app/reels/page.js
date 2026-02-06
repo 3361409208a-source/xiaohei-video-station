@@ -125,6 +125,19 @@ function PlayerContent({ paramsPromise }) {
     window.history.pushState(null, '', `/reels/${newSlug}?src=${encodeURIComponent(v.source_name || v.source)}`);
   };
 
+  const toggleMoyu = () => {
+    if (dpInstance.current && dpInstance.current.video) {
+        if (document.pictureInPictureElement) {
+            document.exitPictureInPicture();
+        } else {
+            dpInstance.current.video.requestPictureInPicture().catch(err => {
+                console.error("Moyu failed", err);
+                alert("当前浏览器或视频源不支持摸鱼模式哦~");
+            });
+        }
+    }
+  };
+
   if (loading && !mainVideo) return <div className="loading-screen-full">🌚 正在为您连接解说信号...</div>;
 
   if (!isMobile) {
@@ -158,19 +171,39 @@ function PlayerContent({ paramsPromise }) {
             </div>
             
             <div className="video-meta-box">
-              <div className="title-row">
-                <div className="title-text-group">
-                   <h1 className="v-primary-title">{mainVideo?.title.replace('[电影解说]', '')}</h1>
-                   <p className="v-subtitle">{mainVideo?.category} · {currentSrc}</p>
+                <div className="title-row">
+                  <div className="title-text-group">
+                    <h1 className="v-primary-title">{mainVideo?.title.replace('[电影解说]', '')}</h1>
+                    <p className="v-subtitle">{mainVideo?.category} · {currentSrc}</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <button 
+                        onClick={toggleMoyu}
+                        style={{
+                            background: 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            color: '#ccc',
+                            padding: '10px 20px',
+                            borderRadius: '12px',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            transition: '0.3s'
+                        }}
+                        onMouseEnter={(e) => { e.target.style.background = 'rgba(255,255,255,0.1)'; e.target.style.color = '#fff'; }}
+                        onMouseLeave={(e) => { e.target.style.background = 'rgba(255,255,255,0.05)'; e.target.style.color = '#ccc'; }}
+                    >
+                        🐟 摸鱼模式
+                    </button>
+                    {searchResults.length > 0 && (
+                      <button onClick={() => playFilmDirectly(searchResults[0])} className="premium-play-btn">
+                        <span className="icon">⚡</span>
+                        <span className="text">直接播放正片</span>
+                        <div className="btn-glow"></div>
+                      </button>
+                    )}
+                  </div>
                 </div>
-                {searchResults.length > 0 && (
-                  <button onClick={() => playFilmDirectly(searchResults[0])} className="premium-play-btn">
-                    <span className="icon">⚡</span>
-                    <span className="text">直接播放正片</span>
-                    <div className="btn-glow"></div>
-                  </button>
-                )}
-              </div>
               <div className="description-section">
                 <div className="desc-label">内 容 详 情</div>
                 <p className={`desc-content ${isDescCollapsed ? 'collapsed' : ''}`}>
@@ -288,7 +321,7 @@ function PlayerContent({ paramsPromise }) {
     <div className="mobile-feed-container" ref={containerRef} style={{ height: '100vh', overflowY: 'scroll', scrollSnapType: 'y mandatory', background: '#000' }}>
       <div className="feed-item" style={{ height: '100vh', scrollSnapAlign: 'start', position: 'relative' }}>
           <iframe src={`https://p.cdn.it/player.html?url=${encodeURIComponent(mainVideo?.episodes?.[0]?.url || '')}`} style={{ width:'100%', height:'100%', border:'none' }} allowFullScreen />
-          <MobileOverlay video={mainVideo} searchResults={searchResults} playFilmDirectly={playFilmDirectly} />
+          <MobileOverlay video={mainVideo} searchResults={searchResults} playFilmDirectly={playFilmDirectly} toggleMoyu={toggleMoyu} />
       </div>
       {recommendations.map(v => (
         <div key={v.id} className="feed-item" style={{ height: '100vh', scrollSnapAlign: 'start', position: 'relative' }}>
@@ -304,7 +337,7 @@ function PlayerContent({ paramsPromise }) {
   );
 }
 
-function MobileOverlay({ video, searchResults, playFilmDirectly }) {
+function MobileOverlay({ video, searchResults, playFilmDirectly, toggleMoyu }) {
     return (
         <div className="m-overlay">
             <div className="m-info">
@@ -312,6 +345,9 @@ function MobileOverlay({ video, searchResults, playFilmDirectly }) {
               <p>{video?.category} · {video?.year}</p>
             </div>
             <div className="m-actions">
+              <div onClick={toggleMoyu} className="m-btn-normal">
+                <div className="m-icon-inner">🐟</div><span>摸鱼</span>
+              </div>
               {searchResults.length > 0 ? (
                   <div onClick={() => playFilmDirectly(searchResults[0])} className="m-btn-premium">
                     <div className="m-icon-inner">⚡</div><span>正片</span>
