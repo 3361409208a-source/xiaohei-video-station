@@ -17,7 +17,7 @@ function PlayerContent({ paramsPromise }) {
 
   const [mainVideo, setMainVideo] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
-  const [originalMovie, setOriginalMovie] = useState(null);
+  const [searchResults, setSearchResults] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
@@ -34,13 +34,10 @@ function PlayerContent({ paramsPromise }) {
   }, []);
 
   const fetchRecs = () => {
-    // 随机获取一页，保持新鲜感
     const randomPage = Math.floor(Math.random() * 20) + 1;
     fetch(`/api/search?t=解说&pg=${randomPage}&_ts=${Date.now()}`)
       .then(res => res.json())
-      .then(data => {
-        setRecommendations(data.slice(0, 6));
-      });
+      .then(data => setRecommendations(data.slice(0, 6)));
   };
 
   useEffect(() => {
@@ -49,13 +46,11 @@ function PlayerContent({ paramsPromise }) {
       let tsrc = currentSrc;
 
       if (!tid) {
-          // 如果没有 ID，随机选一个视频作为开场
           const randomPage = Math.floor(Math.random() * 10) + 1;
-          const res = await fetch(`/api/search?t=解说&pg=${randomPage}&_ts=${Date.now()}`);
+          const res = await fetch(`/api/search?t=解说&pg=${randomPage}`);
           const data = await res.json();
           if (data.length > 0) {
-              const randomIdx = Math.floor(Math.random() * data.length);
-              const target = data[randomIdx];
+              const target = data[Math.floor(Math.random()*data.length)];
               tid = target.id;
               tsrc = target.source_name || target.source;
               setCurrentId(tid);
@@ -70,11 +65,13 @@ function PlayerContent({ paramsPromise }) {
         if (data) {
             setMainVideo(data);
             const cleanTitle = data.title.replace('[电影解说]', '').replace('电影解说', '').trim();
+            // 搜索相关正片并直接列在底部
             fetch(`/api/search?q=${encodeURIComponent(cleanTitle)}`)
               .then(r => r.json())
               .then(searchData => {
-                const original = searchData.find(item => !item.category.includes('解说') && !item.title.includes('解说'));
-                setOriginalMovie(original);
+                // 过滤出非解说的正片
+                const films = searchData.filter(item => !item.category.includes('解说') && !item.title.includes('解说'));
+                setSearchResults(films);
               });
         }
       } catch (e) {}
@@ -89,28 +86,31 @@ function PlayerContent({ paramsPromise }) {
     if (typeof window !== 'undefined' && mainVideo?.episodes?.[0]?.url) {
       const videoUrl = mainVideo.episodes[0].url;
       if (videoUrl.includes('.m3u8') || videoUrl.includes('.mp4')) {
-        Promise.all([
-          import('hls.js'),
-          import('dplayer')
-        ]).then(([HlsModule, DPlayerModule]) => {
-          const Hls = HlsModule.default;
+        Promise.all([import('hls.js'), import('dplayer')]).then(([HlsModule, DPlayerModule]) => {
           const DPlayer = DPlayerModule.default;
-
           if (dpInstance.current) {
             dpInstance.current.switchVideo({ url: videoUrl, type: 'hls' });
             dpInstance.current.play();
           } else if (playerRef.current) {
-            dpInstance.current = new DPlayer({
-              container: playerRef.current,
-              autoplay: true,
-              theme: '#e11d48',
-              video: { url: videoUrl, type: 'hls' }
-            });
+            dpInstance.current = new DPlayer({ container: playerRef.current, autoplay: true, theme: '#e11d48', video: { url: videoUrl, type: 'hls' } });
           }
         });
       }
     }
   }, [mainVideo]);
+
+  const playFilmDirectly = async (film) => {
+    setSwitching(true);
+    const res = await fetch(`/api/detail?id=${film.id}&src=${encodeURIComponent(film.source_name || film.source)}`);
+    const data = await res.json();
+    if (data && data.episodes?.length > 0) {
+        setMainVideo(data);
+        setCurrentId(film.id);
+        setCurrentSrc(film.source_name || film.source);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    setSwitching(false);
+  };
 
   const handleSwitch = (v) => {
     setCurrentId(v.id);
@@ -132,8 +132,8 @@ function PlayerContent({ paramsPromise }) {
             </Link>
             <nav className="nav-links">
                 {['首页', '🔥 去看解说', '电影', '电视剧', '短剧', '动漫'].map(name => (
-                    <Link key={name} href={name === '首页' ? '/' : (name === '🔥 去看解说' ? '/reels' : `/channel/${name}`)} 
-                          className={`nav-link ${name === '🔥 去看解说' ? 'special-link' : ''}`}>
+                    <Link key={name} href={name === '首页' ? '/' : (name.includes('解说') ? '/reels' : `/channel/${name}`)} 
+                          className={`nav-link ${name.includes('解说') ? 'special-link' : ''}`}>
                     {name}
                     </Link>
                 ))}
@@ -148,7 +148,7 @@ function PlayerContent({ paramsPromise }) {
               {!(mainVideo?.episodes?.[0]?.url?.includes('.m3u8') || mainVideo?.episodes?.[0]?.url?.includes('.mp4')) && mainVideo?.episodes?.[0]?.url && (
                   <iframe src={mainVideo.episodes[0].url} style={{ width:'100%', height:'100%', border:'none' }} allowFullScreen />
               )}
-              {switching && <div className="switching-overlay">🌚 正在秒切线路...</div>}
+              {switching && <div className="switching-overlay">🌚 正在秒切正片...</div>}
             </div>
             
             <div className="video-meta-box">
@@ -157,18 +157,37 @@ function PlayerContent({ paramsPromise }) {
                    <h1 className="v-primary-title">{mainVideo?.title.replace('[电影解说]', '')}</h1>
                    <p className="v-subtitle">{mainVideo?.category} · {currentSrc}</p>
                 </div>
-                {originalMovie && (
-                  <Link href={`/movie/${encodeURIComponent(`${originalMovie.title}-${originalMovie.id}`)}?src=${encodeURIComponent(originalMovie.source_name)}`} className="premium-play-btn">
+                {searchResults.length > 0 && (
+                  <button onClick={() => playFilmDirectly(searchResults[0])} className="premium-play-btn">
                     <span className="icon">⚡</span>
-                    <span className="text">观看完整正片</span>
+                    <span className="text">直接播放正片</span>
                     <div className="btn-glow"></div>
-                  </Link>
+                  </button>
                 )}
               </div>
               <div className="description-section">
                 <div className="desc-label">解说详情</div>
                 <p className="desc-content">{mainVideo?.description || '精彩内容正在赶来...'}</p>
               </div>
+
+              {/* 底部搜索到的视频列表 */}
+              {searchResults.length > 0 && (
+                  <div className="search-results-list">
+                      <div className="results-header">相关正片资源 ({searchResults.length})</div>
+                      <div className="results-grid">
+                          {searchResults.map(film => (
+                              <div key={film.id} className="result-card" onClick={() => playFilmDirectly(film)}>
+                                  <div className="result-thumb"><img src={film.poster} /></div>
+                                  <div className="result-info">
+                                      <div className="result-title">{film.title}</div>
+                                      <div className="result-meta">{film.year} · {film.source_name || film.source}</div>
+                                  </div>
+                                  <div className="play-btn-mini">立即播放</div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+              )}
             </div>
           </div>
 
@@ -210,34 +229,42 @@ function PlayerContent({ paramsPromise }) {
           .v-primary-title { font-size: 26px; font-weight: 900; color: #fff; line-height: 1.2; margin-bottom: 8px; }
           .v-subtitle { color: var(--text-dim); font-size: 14px; font-weight: 500; }
           
-          .premium-play-btn { position: relative; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: #fff !important; padding: 14px 28px; border-radius: 14px; font-weight: 800; display: flex; align-items: center; gap: 10px; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); overflow: hidden; white-space: nowrap; box-shadow: 0 10px 25px rgba(225, 29, 72, 0.4); }
+          .premium-play-btn { border:none; cursor:pointer; position: relative; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: #fff !important; padding: 14px 28px; border-radius: 14px; font-weight: 800; display: flex; align-items: center; gap: 10px; transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); overflow: hidden; white-space: nowrap; box-shadow: 0 10px 25px rgba(225, 29, 72, 0.4); }
           .premium-play-btn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 15px 35px rgba(225, 29, 72, 0.6); }
-          .premium-play-btn .icon { font-size: 18px; }
           .btn-glow { position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); transition: 0.5s; }
           .premium-play-btn:hover .btn-glow { left: 100%; transition: 0.8s; }
 
-          .description-section { border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; }
+          .description-section { border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; margin-bottom: 30px; }
           .desc-label { font-size: 12px; color: var(--primary); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
           .desc-content { line-height: 1.8; color: #a1a1aa; font-size: 15px; }
+
+          .search-results-list { border-top: 2px solid rgba(225, 29, 72, 0.2); padding-top: 25px; }
+          .results-header { font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 20px; }
+          .results-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+          .result-card { background: rgba(255,255,255,0.02); padding: 12px; border-radius: 12px; display: flex; align-items: center; gap: 15px; cursor: pointer; transition: 0.3s; border: 1px solid transparent; }
+          .result-card:hover { background: rgba(225,29,72,0.05); border-color: rgba(225,29,72,0.2); transform: scale(1.01); }
+          .result-thumb { width: 60px; aspect-ratio: 2/3; border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+          .result-thumb img { width: 100%; height: 100%; object-fit: cover; }
+          .result-info { flex: 1; }
+          .result-title { color: #fff; font-weight: 700; margin-bottom: 5px; }
+          .result-meta { font-size: 12px; color: var(--text-dim); }
+          .play-btn-mini { font-size: 12px; color: var(--primary); font-weight: 800; border: 1px solid var(--primary); padding: 4px 12px; border-radius: 100px; }
           
           .right-sidebar { flex-shrink: 0; }
           .sticky-sidebar { position: sticky; top: 100px; }
           .sidebar-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px; }
-          .sidebar-header-row h3 { font-size: 16px; font-weight: 800; letter-spacing: 0.5px; }
-          .btn-refresh { background: rgba(225, 29, 72, 0.1); border: 1px solid rgba(225, 29, 72, 0.2); color: var(--primary); cursor: pointer; font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 100px; transition: 0.3s; }
-          .btn-refresh:hover { background: var(--primary); color: #fff; }
-          
+          .sidebar-header-row h3 { font-size: 16px; font-weight: 800; }
+          .btn-refresh { background: rgba(225, 29, 72, 0.1); border: 1px solid rgba(225, 29, 72, 0.2); color: var(--primary); cursor: pointer; font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 100px; }
           .recommendation-column { display: flex; flex-direction: column; gap: 12px; }
-          .rec-card-mini { display: flex; gap: 12px; cursor: pointer; padding: 10px; border-radius: 12px; transition: 0.3s; border: 1px solid transparent; align-items: flex-start; }
+          .rec-card-mini { display: flex; gap: 12px; cursor: pointer; padding: 10px; border-radius: 12px; transition: 0.3s; border: 1px solid transparent; }
           .rec-card-mini:hover { background: rgba(255,255,255,0.03); transform: translateX(5px); }
           .rec-card-mini.active { background: rgba(225, 29, 72, 0.08); border-color: rgba(225, 29, 72, 0.15); }
-          .thumb { width: 130px; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; background: #1a1a1a; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+          .thumb { width: 130px; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; background: #1a1a1a; flex-shrink: 0; }
           .thumb img { width: 100%; height: 100%; object-fit: cover; }
           .text-content h4 { font-size: 14px; color: #e4e4e7; margin-bottom: 5px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 700; }
-          .text-content p { font-size: 11px; color: var(--text-dim); font-weight: 500; }
+          .text-content p { font-size: 11px; color: var(--text-dim); }
 
-          .loading-screen-full { height: 100vh; background: var(--bg-main); display: flex; align-items: center; justify-content: center; color: var(--primary); font-weight: 900; font-size: 22px; letter-spacing: 1px; }
-
+          .loading-screen-full { height: 100vh; background: var(--bg-main); display: flex; align-items: center; justify-content: center; color: var(--primary); font-weight: 900; font-size: 22px; }
           @media (max-width: 1200px) { .player-grid { grid-template-columns: 1fr; } .right-sidebar { width: 100%; } .sticky-sidebar { position: static; } }
         `}</style>
       </div>
@@ -248,7 +275,7 @@ function PlayerContent({ paramsPromise }) {
     <div className="mobile-feed-container" ref={containerRef} style={{ height: '100vh', overflowY: 'scroll', scrollSnapType: 'y mandatory', background: '#000' }}>
       <div className="feed-item" style={{ height: '100vh', scrollSnapAlign: 'start', position: 'relative' }}>
           <iframe src={`https://p.cdn.it/player.html?url=${encodeURIComponent(mainVideo?.episodes?.[0]?.url || '')}`} style={{ width:'100%', height:'100%', border:'none' }} allowFullScreen />
-          <MobileOverlay video={mainVideo} original={originalMovie} />
+          <MobileOverlay video={mainVideo} searchResults={searchResults} playFilmDirectly={playFilmDirectly} />
       </div>
       {recommendations.map(v => (
         <div key={v.id} className="feed-item" style={{ height: '100vh', scrollSnapAlign: 'start', position: 'relative' }}>
@@ -264,7 +291,7 @@ function PlayerContent({ paramsPromise }) {
   );
 }
 
-function MobileOverlay({ video, original }) {
+function MobileOverlay({ video, searchResults, playFilmDirectly }) {
     return (
         <div className="m-overlay">
             <div className="m-info">
@@ -272,19 +299,19 @@ function MobileOverlay({ video, original }) {
               <p>{video?.category} · {video?.year}</p>
             </div>
             <div className="m-actions">
-              {original ? (
-                  <Link href={`/movie/${encodeURIComponent(`${original.title}-${original.id}`)}?src=${encodeURIComponent(original.source_name)}`} className="m-btn-premium">
+              {searchResults.length > 0 ? (
+                  <div onClick={() => playFilmDirectly(searchResults[0])} className="m-btn-premium">
                     <div className="m-icon-inner">⚡</div><span>正片</span>
-                  </Link>
+                  </div>
               ) : null}
               <Link href="/" className="m-btn-normal"><div className="m-icon-inner">🏠</div><span>首页</span></Link>
             </div>
             <style jsx>{`
                 .m-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 50px 20px; background: linear-gradient(transparent, rgba(0,0,0,0.98)); display: flex; justify-content: space-between; align-items: flex-end; z-index: 10; pointer-events: none; }
                 .m-info { max-width: 70%; color: #fff; }
-                .m-info h3 { font-size: 22px; font-weight: 900; margin-bottom: 10px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+                .m-info h3 { font-size: 22px; font-weight: 900; margin-bottom: 10px; }
                 .m-actions { display: flex; flex-direction: column; gap: 24px; pointer-events: auto; }
-                .m-btn-premium, .m-btn-normal { display: flex; flex-direction: column; align-items: center; gap: 6px; color: #fff; text-decoration: none; }
+                .m-btn-premium, .m-btn-normal { display: flex; flex-direction: column; align-items: center; gap: 6px; color: #fff; text-decoration: none; cursor: pointer; }
                 .m-icon-inner { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; backdrop-filter: blur(10px); background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); }
                 .m-btn-premium .m-icon-inner { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 20px rgba(225, 29, 72, 0.6); }
                 .m-btn-premium span { font-weight: 800; color: var(--primary); background: #fff; padding: 2px 8px; border-radius: 4px; transform: scale(0.8); }
