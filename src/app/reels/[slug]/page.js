@@ -59,7 +59,8 @@ function PlayerContent({ paramsPromise }) {
         fetch('/api/search?t=解说&pg=1')
           .then(res => res.json())
           .then(data => {
-            setRecommendations(data.filter(v => v.id !== (currentId || (targetVideo?.id))));
+            // 限制展示数量为 6 个，并排除当前项
+            setRecommendations(data.filter(v => v.id !== (currentId || (targetVideo?.id))).slice(0, 6));
           });
 
       } catch (e) {
@@ -99,7 +100,11 @@ function PlayerContent({ paramsPromise }) {
           <div className="left-zone">
             <div className="video-viewport">
               {mainVideo?.episodes?.[0] ? (
-                <iframe src={`https://p.cdn.it/player.html?url=${encodeURIComponent(mainVideo.episodes[0].url)}`} style={{ width:'100%', height:'100%', border:'none' }} allowFullScreen />
+                <iframe 
+                  src={`https://jx.xmflv.com/?url=${encodeURIComponent(mainVideo.episodes[0].url)}`} 
+                  style={{ width:'100%', height:'100%', border:'none' }} 
+                  allowFullScreen 
+                />
               ) : <div className="no-signal">信号丢失，请尝试换线</div>}
             </div>
             
@@ -129,7 +134,7 @@ function PlayerContent({ paramsPromise }) {
               <button className="btn-refresh" onClick={() => {
                 fetch(`/api/search?t=解说&pg=${Math.floor(Math.random()*15)+1}`)
                   .then(res => res.json())
-                  .then(data => setRecommendations(data));
+                  .then(data => setRecommendations(data.slice(0, 6)));
               }}>🔄 换一批</button>
             </div>
             <div className="recommendation-column">
