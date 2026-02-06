@@ -34,10 +34,11 @@ function PlayerContent({ paramsPromise }) {
   }, []);
 
   const fetchRecs = () => {
-    fetch('/api/search?t=解说&pg=1')
+    // 随机获取一页，保持新鲜感
+    const randomPage = Math.floor(Math.random() * 20) + 1;
+    fetch(`/api/search?t=解说&pg=${randomPage}&_ts=${Date.now()}`)
       .then(res => res.json())
       .then(data => {
-        // 随机切一部分，避免全是老片
         setRecommendations(data.slice(0, 6));
       });
   };
@@ -48,10 +49,13 @@ function PlayerContent({ paramsPromise }) {
       let tsrc = currentSrc;
 
       if (!tid) {
-          const res = await fetch('/api/search?t=解说&pg=1&_r=' + Math.random());
+          // 如果没有 ID，随机选一个视频作为开场
+          const randomPage = Math.floor(Math.random() * 10) + 1;
+          const res = await fetch(`/api/search?t=解说&pg=${randomPage}&_ts=${Date.now()}`);
           const data = await res.json();
           if (data.length > 0) {
-              const target = data[0];
+              const randomIdx = Math.floor(Math.random() * data.length);
+              const target = data[randomIdx];
               tid = target.id;
               tsrc = target.source_name || target.source;
               setCurrentId(tid);
@@ -127,9 +131,9 @@ function PlayerContent({ paramsPromise }) {
                 <div className="logo-text">小黑<span>搜影</span></div>
             </Link>
             <nav className="nav-links">
-                {['首页', '去看解说', '电影', '电视剧', '短剧', '动漫'].map(name => (
-                    <Link key={name} href={name === '首页' ? '/' : (name === '去看解说' ? '/reels' : `/channel/${name}`)} 
-                          className={`nav-link ${name === '去看解说' ? 'active' : ''}`}>
+                {['首页', '🔥 去看解说', '电影', '电视剧', '短剧', '动漫'].map(name => (
+                    <Link key={name} href={name === '首页' ? '/' : (name === '🔥 去看解说' ? '/reels' : `/channel/${name}`)} 
+                          className={`nav-link ${name === '🔥 去看解说' ? 'special-link' : ''}`}>
                     {name}
                     </Link>
                 ))}
@@ -173,7 +177,7 @@ function PlayerContent({ paramsPromise }) {
                 <div className="sidebar-header-row">
                 <h3>推荐解说</h3>
                 <button className="btn-refresh" onClick={() => {
-                    fetch(`/api/search?t=解说&pg=${Math.floor(Math.random()*20)+1}`)
+                    fetch(`/api/search?t=解说&pg=${Math.floor(Math.random()*30)+1}`)
                     .then(res => res.json())
                     .then(data => setRecommendations(data.slice(0, 6)));
                 }}>🔄 换一批</button>

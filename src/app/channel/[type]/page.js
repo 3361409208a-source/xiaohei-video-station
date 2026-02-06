@@ -57,10 +57,10 @@ function ChannelContent({ paramsPromise }) {
             <div className="logo-text">小黑<span>搜影</span></div>
           </Link>
           <nav className="nav-links">
-            {['首页', '去看解说', '电影', '电视剧', '短剧', '动漫', '综艺', '纪录片'].map(name => {
-              const path = name === '首页' ? '/' : (name === '去看解说' ? '/reels' : `/channel/${name}`);
+            {['首页', '🔥 去看解说', '电影', '电视剧', '短剧', '动漫', '综艺', '纪录片'].map(name => {
+              const path = name === '首页' ? '/' : (name.includes('解说') ? '/reels' : `/channel/${name}`);
               return (
-                <Link key={name} href={path} className={`nav-link ${type === name ? 'active' : ''}`}>
+                <Link key={name} href={path} className={`nav-link ${type === name ? 'active' : ''} ${name.includes('解说') ? 'special-link' : ''}`}>
                   {name}
                 </Link>
               );

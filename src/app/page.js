@@ -14,7 +14,7 @@ function HomeContent() {
 
   const categories = [
     { name: '首页', path: '/', active: true },
-    { name: '去看解说', path: '/reels' },
+    { name: '🔥 去看解说', path: '/reels' },
     { name: '电影', path: '/channel/电影' },
     { name: '电视剧', path: '/channel/电视剧' },
     { name: '短剧', path: '/channel/短剧' },
@@ -81,7 +81,7 @@ function HomeContent() {
 
           <nav className="nav-links">
             {categories.map(cat => (
-              <Link key={cat.name} href={cat.path} className={`nav-link ${activeTab === '首页' && cat.name === '首页' ? 'active' : ''}`}>
+              <Link key={cat.name} href={cat.path} className={`nav-link ${activeTab === '首页' && cat.name === '首页' ? 'active' : ''} ${cat.name.includes('解说') ? 'special-link' : ''}`}>
                 {cat.name}
               </Link>
             ))}
