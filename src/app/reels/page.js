@@ -1,8 +1,13 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function ReelsPage() {
+function ReelsContent() {
+  const searchParams = useSearchParams();
+  const initialId = searchParams.get('id');
+  const initialSrc = searchParams.get('src');
+
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState(null);
@@ -17,9 +22,31 @@ export default function ReelsPage() {
     try {
       const res = await fetch(`/api/search?t=解说&pg=${p}&_ts=${Date.now()}`);
       const data = await res.json();
-      setVideos(data);
-      if (data.length > 0 && !isMobile) {
-        setSelectedVideo(data[0]);
+      
+      let finalVideos = data;
+      // 如果带了 id 进来，要把那个视频放到列表第一位
+      if (initialId && p === 1) {
+          try {
+              const detailRes = await fetch(`/api/detail?id=${initialId}&src=${encodeURIComponent(initialSrc)}`);
+              const detailData = await detailRes.json();
+              if (detailData && detailData.title) {
+                  const targetVideo = {
+                      id: initialId,
+                      title: detailData.title,
+                      poster: detailData.poster,
+                      source: initialSrc,
+                      category: detailData.category,
+                      update_time: "刚刚",
+                      year: "2026"
+                  };
+                  finalVideos = [targetVideo, ...data.filter(v => v.id !== initialId)];
+              }
+          } catch(e) {}
+      }
+
+      setVideos(finalVideos);
+      if (finalVideos.length > 0 && !isMobile) {
+        setSelectedVideo(finalVideos[0]);
       }
       setLoading(false);
     } catch (error) {
@@ -34,7 +61,7 @@ export default function ReelsPage() {
     window.addEventListener('resize', checkMobile);
     fetchVideos(1);
     return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  }, [initialId]);
 
   // 当选择的视频改变时，自动寻找正片
   useEffect(() => {
@@ -299,4 +326,12 @@ function MobileOverlay({ video }) {
             `}</style>
         </div>
     );
+}
+
+export default function ReelsPage() {
+    return (
+        <Suspense fallback={<div className="loading-state">🌚 正在加载大片解说...</div>}>
+            <ReelsContent />
+        </Suspense>
+    )
 }
