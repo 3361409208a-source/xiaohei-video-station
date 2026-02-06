@@ -8,7 +8,6 @@ function PlayerContent() {
   const searchParams = useSearchParams();
   const params = useParams();
   
-  // 从 URL 中解析当前视频 ID 和来源
   const getUrlData = () => {
     const slug = params?.slug ? decodeURIComponent(params.slug) : null;
     const idFromSlug = slug ? slug.split('-').pop() : null;
@@ -33,22 +32,17 @@ function PlayerContent() {
   const playerRef = useRef(null);
   const dpInstance = useRef(null);
 
-  // 初始化基础数据
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    
-    // 随机推荐（限制在前 10 页，保证新鲜度）
     const randomPage = Math.floor(Math.random() * 10) + 1;
     fetch(`/api/search?t=解说&pg=${randomPage}&_ts=${Date.now()}`)
       .then(res => res.json())
       .then(data => setRecommendations(data.slice(0, 6)));
-
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // 核心：监听 URL 变化，同步播放状态（解决刷新丢失问题）
   useEffect(() => {
     const { id, src } = getUrlData();
     if (id !== currentId || src !== currentSrc) {
@@ -57,10 +51,8 @@ function PlayerContent() {
     }
   }, [params, searchParams]);
 
-  // 加载视频详情
   useEffect(() => {
     const loadVideo = async () => {
-      // 如果 URL 里完全没 ID（直接访问 /reels），则随机抓取一个
       if (!currentId) {
           setLoading(true);
           const randomPage = Math.floor(Math.random() * 5) + 1;
@@ -68,7 +60,6 @@ function PlayerContent() {
           const data = await res.json();
           if (data && data.length > 0) {
               const target = data[Math.floor(Math.random() * data.length)];
-              // 自动跳转到带 ID 的 URL，但不刷新页面
               router.replace(`/reels/${encodeURIComponent(`${target.title}-${target.id}`)}?src=${encodeURIComponent(target.source_name || target.source)}`);
           }
           return;
@@ -81,7 +72,7 @@ function PlayerContent() {
         if (data) {
             setMainVideo(data);
             const cleanTitle = data.title.replace('[电影解说]', '').replace('电影解说', '').trim();
-            // 同步搜寻正片
+            // 改进：增加 searchLoading 状态或优化逻辑
             fetch(`/api/search?q=${encodeURIComponent(cleanTitle)}`)
               .then(r => r.json())
               .then(searchData => {
@@ -97,7 +88,6 @@ function PlayerContent() {
     loadVideo();
   }, [currentId, currentSrc]);
 
-  // DPlayer 渲染逻辑
   useEffect(() => {
     if (typeof window !== 'undefined' && mainVideo?.episodes?.[0]?.url) {
       const videoUrl = mainVideo.episodes[0].url;
@@ -128,6 +118,8 @@ function PlayerContent() {
         setMainVideo(data);
         const newSlug = encodeURIComponent(`${film.title}-${film.id}`);
         window.history.pushState(null, '', `/reels/${newSlug}?src=${encodeURIComponent(film.source_name || film.source)}`);
+        setCurrentId(film.id);
+        setCurrentSrc(film.source_name || film.source);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     setSwitching(false);
@@ -136,10 +128,21 @@ function PlayerContent() {
   const handleSwitch = (v) => {
     const newSlug = encodeURIComponent(`${v.title}-${v.id}`);
     const newSrc = v.source_name || v.source;
-    // 使用 router.push 会导致页面刷新（Next.js 特性），所以我们手动改 URL 并更新状态
     window.history.pushState(null, '', `/reels/${newSlug}?src=${encodeURIComponent(newSrc)}`);
     setCurrentId(v.id);
     setCurrentSrc(newSrc);
+  };
+
+  const toggleMoyu = () => {
+    if (dpInstance.current && dpInstance.current.video) {
+        if (document.pictureInPictureElement) {
+            document.exitPictureInPicture();
+        } else {
+            dpInstance.current.video.requestPictureInPicture().catch(err => {
+                alert("当前浏览器或视频源不支持摸鱼模式哦~");
+            });
+        }
+    }
   };
 
   if (loading && !mainVideo) return <div className="loading-screen-full">🌚 正在连接解说信号...</div>;
@@ -180,13 +183,16 @@ function PlayerContent() {
                    <h1 className="v-primary-title">{mainVideo?.title.replace('[电影解说]', '')}</h1>
                    <p className="v-subtitle">{mainVideo?.category} · {currentSrc}</p>
                 </div>
-                {searchResults.length > 0 && (
-                  <button onClick={() => playFilmDirectly(searchResults[0])} className="premium-play-btn">
-                    <span className="icon">⚡</span>
-                    <span className="text">观看完整正片</span>
-                    <div className="btn-glow"></div>
-                  </button>
-                )}
+                <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                    <button onClick={toggleMoyu} className="moyu-action-btn">🐟 摸鱼模式</button>
+                    {searchResults.length > 0 && (
+                        <button onClick={() => playFilmDirectly(searchResults[0])} className="premium-play-btn">
+                            <span className="icon">⚡</span>
+                            <span className="text">观看完整正片</span>
+                            <div className="btn-glow"></div>
+                        </button>
+                    )}
+                </div>
               </div>
               <div className="description-section">
                 <div className="desc-label">内 容 详 情</div>
@@ -256,9 +262,12 @@ function PlayerContent() {
           .title-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; gap: 30px; }
           .v-primary-title { font-size: 24px; font-weight: 900; color: #fff; line-height: 1.2; margin-bottom: 8px; }
           .v-subtitle { color: var(--text-dim); font-size: 13px; }
+
+          .moyu-action-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #ccc; padding: 10px 18px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.3s; }
+          .moyu-action-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
           
-          .premium-play-btn { border:none; cursor:pointer; position: relative; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: #fff !important; padding: 12px 24px; border-radius: 12px; font-weight: 800; display: flex; align-items: center; gap: 10px; transition: 0.3s; white-space: nowrap; }
-          .premium-play-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(225,29,72,0.4); }
+          .premium-play-btn { border:none; cursor:pointer; position: relative; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: #fff !important; padding: 12px 24px; border-radius: 12px; font-weight: 800; display: flex; align-items: center; gap: 10px; transition: 0.3s; white-space: nowrap; box-shadow: 0 10px 20px rgba(225,29,72,0.4); }
+          .premium-play-btn:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(225,29,72,0.6); }
           .btn-glow { position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); transition: 0.5s; }
           .premium-play-btn:hover .btn-glow { left: 100%; transition: 0.8s; }
 
@@ -312,6 +321,9 @@ function PlayerContent() {
               <p>{mainVideo?.category} · {mainVideo?.year}</p>
             </div>
             <div className="m-actions">
+              <div onClick={toggleMoyu} className="m-btn-normal">
+                <div className="m-icon-inner">🐟</div><span>摸鱼</span>
+              </div>
               {searchResults.length > 0 ? (
                   <div onClick={() => playFilmDirectly(searchResults[0])} className="m-btn-premium">
                     <div className="m-icon-inner">⚡</div><span>正片</span>
