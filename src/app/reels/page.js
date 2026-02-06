@@ -21,6 +21,7 @@ function PlayerContent({ paramsPromise }) {
   const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
+  const [isDescCollapsed, setIsDescCollapsed] = useState(true);
   
   const playerRef = useRef(null);
   const dpInstance = useRef(null);
@@ -38,6 +39,11 @@ function PlayerContent({ paramsPromise }) {
     fetch(`/api/search?t=解说&pg=${randomPage}&_ts=${Date.now()}`)
       .then(res => res.json())
       .then(data => setRecommendations(data.slice(0, 6)));
+  };
+
+  const stripHtml = (html) => {
+    if (!html) return "";
+    return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ');
   };
 
   useEffect(() => {
@@ -166,8 +172,13 @@ function PlayerContent({ paramsPromise }) {
                 )}
               </div>
               <div className="description-section">
-                <div className="desc-label">解说详情</div>
-                <p className="desc-content">{mainVideo?.description || '精彩内容正在赶来...'}</p>
+                <div className="desc-label">内 容 详 情</div>
+                <p className={`desc-content ${isDescCollapsed ? 'collapsed' : ''}`}>
+                    {stripHtml(mainVideo?.description) || '精彩内容正在赶来...'}
+                </p>
+                <div className="toggle-btn" onClick={() => setIsDescCollapsed(!isDescCollapsed)}>
+                    {isDescCollapsed ? '展开详情 ▾' : '收起详情 ▴'}
+                </div>
               </div>
 
               {/* 底部搜索到的视频列表 */}
@@ -234,9 +245,11 @@ function PlayerContent({ paramsPromise }) {
           .btn-glow { position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); transition: 0.5s; }
           .premium-play-btn:hover .btn-glow { left: 100%; transition: 0.8s; }
 
-          .description-section { border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; margin-bottom: 30px; }
-          .desc-label { font-size: 12px; color: var(--primary); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
-          .desc-content { line-height: 1.8; color: #a1a1aa; font-size: 15px; }
+          .description-section { border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; margin-bottom: 30px; position: relative; }
+          .desc-label { font-size: 11px; color: var(--primary); font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; opacity: 0.8; }
+          .desc-content { line-height: 1.8; color: #a1a1aa; font-size: 14px; transition: all 0.3s; }
+          .desc-content.collapsed { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+          .toggle-btn { color: var(--primary); font-size: 12px; font-weight: 700; cursor: pointer; margin-top: 8px; text-align: center; }
 
           .search-results-list { border-top: 2px solid rgba(225, 29, 72, 0.2); padding-top: 25px; }
           .results-header { font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 20px; }

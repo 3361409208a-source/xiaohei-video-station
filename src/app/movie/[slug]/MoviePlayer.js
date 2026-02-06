@@ -13,6 +13,12 @@ export default function MoviePlayer({ id, src, initialUrl }) {
   const [isDescCollapsed, setIsDescCollapsed] = useState(true);
   const [config, setConfig] = useState({ site_name: '小黑搜影', footer: '' });
 
+  // 过滤 HTML 标签的工具函数
+  const stripHtml = (html) => {
+    if (!html) return "";
+    return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ');
+  };
+
   useEffect(() => {
     fetch('/api/config')
       .then(res => res.json())
@@ -174,12 +180,13 @@ export default function MoviePlayer({ id, src, initialUrl }) {
                     style={{ 
                       color: '#999', 
                       display: '-webkit-box',
-                      WebkitLineClamp: isDescCollapsed ? 2 : 'unset',
+                      WebkitLineClamp: isDescCollapsed ? 1 : 'unset',
                       WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
+                      overflow: 'hidden',
+                      lineHeight: '1.6'
                     }}
                    >
-                     <strong>简介：</strong>{detail.description || '暂无简介'}
+                     <strong>简介：</strong>{stripHtml(detail.description) || '暂无简介'}
                    </div>
                    <div 
                     onClick={() => setIsDescCollapsed(!isDescCollapsed)}
