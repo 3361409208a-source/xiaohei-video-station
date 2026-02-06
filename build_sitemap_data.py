@@ -16,10 +16,12 @@ def log(msg):
         f.write(f"{msg}\n")
         f.flush()
 
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+
 def fetch_page(engine, page):
     try:
         api_url = f"{engine['api']}?ac=detail&pg={page}"
-        res = requests.get(api_url, timeout=10)
+        res = requests.get(api_url, timeout=10, headers=HEADERS)
         data = res.json()
         return data.get("list", [])
     except:

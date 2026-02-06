@@ -72,12 +72,14 @@ def get_full_data():
             except: pass
     return _DATA_CACHE["items"]
 
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+
 def fetch_single_page(engine, type_id=None, keyword=None, pg=1):
     try:
         api_url = f"{engine['api']}?ac=detail&pg={pg}"
         if type_id: api_url += f"&t={type_id}"
         if keyword: api_url += f"&wd={urllib.parse.quote(keyword)}"
-        res = requests.get(api_url, timeout=8)
+        res = requests.get(api_url, timeout=8, headers=HEADERS)
         res.encoding = 'utf-8'
         data = res.json()
         results = []
@@ -189,7 +191,7 @@ def get_detail(id: str, src: str):
     engine = next((e for e in sources if e["name"] == urllib.parse.unquote(src)), sources[0] if sources else None)
     if not engine: return None
     try:
-        res = requests.get(f"{engine['api']}?ac=detail&ids={id}", timeout=5).json()
+        res = requests.get(f"{engine['api']}?ac=detail&ids={id}", timeout=5, headers=HEADERS).json()
         if res.get("list"):
             item = res["list"][0]
             play_url = item.get("vod_play_url", "")
@@ -267,7 +269,7 @@ def test_source(data: dict = Body(...), x_admin_token: str = Header(None)):
     try:
         # 尝试获取第一页数据，测试连通性
         test_url = f"{api_url}?ac=list&pg=1"
-        res = requests.get(test_url, timeout=10)
+        res = requests.get(test_url, timeout=10, headers=HEADERS)
         latency = round((time.time() - start_time) * 1000, 2)
         
         if res.status_code == 200:
