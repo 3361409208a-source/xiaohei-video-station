@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, use, Suspense } from 'react';
+import React, { useState, useEffect, useRef, use, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -19,6 +19,8 @@ function PlayerContent({ paramsPromise }) {
   const [originalMovie, setOriginalMovie] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(true);
+  const playerRef = useRef(null);
+  const dpInstance = useRef(null);
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -33,14 +35,18 @@ function PlayerContent({ paramsPromise }) {
         if (currentId && currentSrc) {
             const res = await fetch(`/api/detail?id=${currentId}&src=${encodeURIComponent(currentSrc)}`);
             targetVideo = await res.json();
+            if (targetVideo) {
+                targetVideo.source_name = currentSrc;
+                targetVideo.id = currentId;
+            }
         } else {
             const res = await fetch('/api/search?t=解说&pg=1');
             const data = await res.json();
             if (data.length > 0) {
                 const first = data[0];
-                const detailRes = await fetch(`/api/detail?id=${first.id}&src=${encodeURIComponent(first.source)}`);
+                const detailRes = await fetch(`/api/detail?id=${first.id}&src=${encodeURIComponent(first.source_name || first.source)}`);
                 targetVideo = await detailRes.json();
-                targetVideo.source_name = first.source;
+                targetVideo.source_name = first.source_name || first.source;
                 targetVideo.id = first.id;
             }
         }
@@ -59,7 +65,6 @@ function PlayerContent({ paramsPromise }) {
         fetch('/api/search?t=解说&pg=1')
           .then(res => res.json())
           .then(data => {
-            // 限制展示数量为 6 个，并排除当前项
             setRecommendations(data.filter(v => v.id !== (currentId || (targetVideo?.id))).slice(0, 6));
           });
 
@@ -73,9 +78,42 @@ function PlayerContent({ paramsPromise }) {
     return () => window.removeEventListener('resize', checkMobile);
   }, [currentId, currentSrc]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined' && mainVideo?.episodes?.[0]?.url) {
+      const videoUrl = mainVideo.episodes[0].url;
+      
+      if (videoUrl.includes('.m3u8') || videoUrl.includes('.mp4')) {
+        Promise.all([
+          import('hls.js'),
+          import('dplayer')
+        ]).then(([HlsModule, DPlayerModule]) => {
+          const Hls = HlsModule.default;
+          const DPlayer = DPlayerModule.default;
+
+          if (dpInstance.current) {
+            dpInstance.current.switchVideo({ url: videoUrl, type: 'hls' });
+          } else if (playerRef.current) {
+            dpInstance.current = new DPlayer({
+              container: playerRef.current,
+              autoplay: true,
+              theme: '#e11d48',
+              video: { url: videoUrl, type: 'hls' }
+            });
+          }
+        });
+      }
+    }
+
+    return () => {
+      if (dpInstance.current) {
+        dpInstance.current.destroy();
+        dpInstance.current = null;
+      }
+    };
+  }, [mainVideo, isMobile]);
+
   if (loading && !mainVideo) return <div className="loading-screen-full">🌚 正在连接解说信号...</div>;
 
-  // --- PC 端：黑红主题 B站式播放页 ---
   if (!isMobile) {
     return (
       <div className="dark-player-page">
@@ -99,12 +137,12 @@ function PlayerContent({ paramsPromise }) {
         <main className="player-grid container">
           <div className="left-zone">
             <div className="video-viewport">
-              {mainVideo?.episodes?.[0] ? (
-                <iframe 
-                  src={`https://jx.xmflv.com/?url=${encodeURIComponent(mainVideo.episodes[0].url)}`} 
-                  style={{ width:'100%', height:'100%', border:'none' }} 
-                  allowFullScreen 
-                />
+              {mainVideo?.episodes?.[0]?.url ? (
+                mainVideo.episodes[0].url.includes('.m3u8') || mainVideo.episodes[0].url.includes('.mp4') ? (
+                  <div ref={playerRef} style={{ width:'100%', height:'100%' }}></div>
+                ) : (
+                  <iframe src={mainVideo.episodes[0].url} style={{ width:'100%', height:'100%', border:'none' }} allowFullScreen />
+                )
               ) : <div className="no-signal">信号丢失，请尝试换线</div>}
             </div>
             
@@ -156,40 +194,27 @@ function PlayerContent({ paramsPromise }) {
           .player-grid { display: grid; grid-template-columns: 1fr 400px; gap: 30px; padding-top: 30px; padding-bottom: 50px; }
           .left-zone { min-width: 0; }
           .video-viewport { background: #000; border-radius: 12px; overflow: hidden; aspect-ratio: 16/9; border: 1px solid rgba(255,255,255,0.05); }
-          .no-signal { height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-dim); }
-          
           .video-meta-box { margin-top: 24px; background: var(--bg-card); padding: 24px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); }
           .title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
           .title-row h1 { font-size: 24px; font-weight: 800; color: #fff; }
           .btn-play-original { background: var(--primary); color: #fff; padding: 10px 24px; border-radius: 10px; font-weight: 700; transition: 0.3s; box-shadow: 0 4px 15px rgba(225, 29, 72, 0.3); }
-          .btn-play-original:hover { transform: translateY(-2px); opacity: 0.9; }
-          
           .meta-info-list { display: flex; flex-direction: column; gap: 12px; color: var(--text-dim); font-size: 14px; }
           .tag { color: var(--primary); font-weight: 600; }
-          .description-text { margin-top: 10px; line-height: 1.7; color: #a1a1aa; }
-          
           .right-sidebar { flex-shrink: 0; }
           .sidebar-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
           .btn-refresh { background: none; border: none; color: var(--primary); cursor: pointer; font-size: 14px; font-weight: 600; }
-          
           .recommendation-column { display: flex; flex-direction: column; gap: 16px; }
-          .rec-card-mini { display: flex; gap: 12px; text-decoration: none; padding: 8px; border-radius: 10px; transition: 0.2s; border: 1px solid transparent; }
-          .rec-card-mini:hover { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.05); }
+          .rec-card-mini { display: flex; gap: 12px; text-decoration: none; padding: 8px; border-radius: 10px; transition: 0.2s; }
           .thumb { width: 160px; aspect-ratio: 16/9; border-radius: 6px; overflow: hidden; background: #1a1a1a; flex-shrink: 0; }
           .thumb img { width: 100%; height: 100%; object-fit: cover; }
-          .text-content { flex: 1; min-width: 0; }
           .text-content h4 { font-size: 14px; color: #e4e4e7; margin-bottom: 6px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-          .text-content p { font-size: 12px; color: var(--text-dim); }
-
           .loading-screen-full { height: 100vh; background: var(--bg-main); display: flex; align-items: center; justify-content: center; color: var(--primary); font-weight: 700; font-size: 20px; }
-
           @media (max-width: 1200px) { .player-grid { grid-template-columns: 1fr; } .right-sidebar { width: 100%; } }
         `}</style>
       </div>
     );
   }
 
-  // --- 移动端：极致黑 抖音滑屏 ---
   return (
     <div className="mobile-feed-container" ref={containerRef} style={{ height: '100vh', overflowY: 'scroll', scrollSnapType: 'y mandatory', background: '#000' }}>
       <div className="feed-item" style={{ height: '100vh', scrollSnapAlign: 'start', position: 'relative' }}>
@@ -199,7 +224,7 @@ function PlayerContent({ paramsPromise }) {
       {recommendations.map(v => (
         <div key={v.id} className="feed-item" style={{ height: '100vh', scrollSnapAlign: 'start', position: 'relative' }}>
             <div style={{ width:'100%', height:'100%', backgroundImage: `url(${v.poster})`, backgroundSize: 'cover', backgroundPosition:'center', opacity:0.3, filter: 'blur(10px)' }} />
-            <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff' }}>
+            <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyConten:'center', color:'#fff' }}>
                 <Link href={`/reels/${encodeURIComponent(`${v.title}-${v.id}`)}?src=${encodeURIComponent(v.source)}`} style={{ color:'#fff', textDecoration:'none', border:'1px solid var(--primary)', padding:'12px 30px', borderRadius:'100px', background: 'rgba(225, 29, 72, 0.2)', backdropFilter:'blur(5px)' }}>
                     点击滑入此条
                 </Link>
@@ -227,12 +252,11 @@ function MobileOverlay({ video, original }) {
             </div>
             <style jsx>{`
                 .m-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 40px 20px; background: linear-gradient(transparent, rgba(0,0,0,0.95)); display: flex; justify-content: space-between; align-items: flex-end; z-index: 10; pointer-events: none; }
-                .m-info { max-width: 70%; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
-                .m-info h3 { font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+                .m-info { max-width: 70%; color: #fff; }
                 .m-actions { display: flex; flex-direction: column; gap: 20px; pointer-events: auto; }
                 .m-btn { display: flex; flex-direction: column; align-items: center; gap: 5px; color: #fff; text-decoration: none; }
                 .m-icon { width: 50px; height: 50px; background: rgba(255,255,255,0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
-                .m-btn.highlight .m-icon { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 15px rgba(225, 29, 72, 0.5); }
+                .m-btn.highlight .m-icon { background: var(--primary); border-color: var(--primary); }
                 .m-btn span { font-size: 11px; font-weight: 600; }
             `}</style>
         </div>
@@ -241,7 +265,7 @@ function MobileOverlay({ video, original }) {
 
 export default function PlayerPage({ params }) {
   return (
-    <Suspense fallback={<div style={{ height:'100vh', background:'#0a0a0a', display:'flex', alignItems:'center', justifyContent:'center', color:'#e11d48' }}>🌚 全速加载中...</div>}>
+    <Suspense fallback={<div style={{ height:'100vh', background:'#0a0a0a', display:'flex', alignItems:'center', justifyConten:'center', color:'#e11d48' }}>🌚 全速加载中...</div>}>
       <PlayerContent paramsPromise={params} />
     </Suspense>
   );
