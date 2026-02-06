@@ -6,6 +6,8 @@ export default function MoviePlayer({ id, src, initialUrl }) {
   const [detail, setDetail] = useState(null);
   const [currentUrl, setCurrentUrl] = useState(initialUrl);
   const [currentName, setCurrentName] = useState('');
+  const [altSources, setAltSources] = useState([]);
+  const [isSearchingAlt, setIsSearchingAlt] = useState(false);
   const playerRef = useRef(null);
   const dpInstance = useRef(null);
   const [isDescCollapsed, setIsDescCollapsed] = useState(true);
@@ -46,6 +48,38 @@ export default function MoviePlayer({ id, src, initialUrl }) {
     fetchDetail();
   }, [id, src, initialUrl, config.site_name]);
 
+  // 当主资源加载失败时，自动寻找替代资源
+  const findAlternativeSources = async () => {
+    if (!detail?.title || isSearchingAlt) return;
+    setIsSearchingAlt(true);
+    try {
+      // 搜索同名电影，排除当前失效的源
+      const res = await fetch(`/api/search?q=${encodeURIComponent(detail.title)}`);
+      const data = await res.json();
+      const others = data.filter(item => item.source_name !== src);
+      setAltSources(others);
+    } catch (err) {
+      console.error("Failed to find alt sources", err);
+    }
+    setIsSearchingAlt(false);
+  };
+
+  const handleSwitchSource = async (alt) => {
+    try {
+      const res = await fetch(`/api/detail?id=${alt.id}&src=${encodeURIComponent(alt.source_name)}`);
+      const data = await res.json();
+      // 尝试匹配相同集名，或者播第一集
+      const targetEp = data.episodes.find(e => e.name === currentName) || data.episodes[0];
+      if (targetEp) {
+        setCurrentUrl(targetEp.url);
+        // 更新当前页面的一些信息
+        setDetail(prev => ({...prev, episodes: data.episodes}));
+      }
+    } catch (err) {
+      console.error("Switch source failed", err);
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined' && currentUrl) {
       Promise.all([
@@ -64,6 +98,12 @@ export default function MoviePlayer({ id, src, initialUrl }) {
             autoplay: true,
             theme: '#ec2d7a',
             video: { url: currentUrl, type: 'hls' }
+          });
+
+          // 监听播放失败
+          dpInstance.current.on('error', () => {
+            console.log('🌚 播放失败，正在为您寻找替代资源...');
+            findAlternativeSources();
           });
         }
       });
@@ -154,6 +194,30 @@ export default function MoviePlayer({ id, src, initialUrl }) {
         </div>
 
         <div className="episode-sidebar">
+          {altSources.length > 0 && (
+            <div className="alt-sources-box" style={{ marginBottom: '20px', padding: '15px', background: 'rgba(236, 45, 122, 0.1)', border: '1px solid #ec2d7a', borderRadius: '8px' }}>
+              <div style={{ color: '#ec2d7a', fontSize: '0.9rem', marginBottom: '10px', fontWeight: 'bold' }}>🌚 发现可用替代路线：</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {altSources.map(alt => (
+                  <button 
+                    key={alt.id}
+                    onClick={() => handleSwitchSource(alt)}
+                    style={{ 
+                      background: '#ec2d7a', 
+                      color: '#fff', 
+                      border: 'none', 
+                      padding: '5px 12px', 
+                      borderRadius: '4px', 
+                      fontSize: '0.8rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    切换至：{alt.source_name} ({alt.source_tip})
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="sidebar-title">选集播放</div>
           <div className={`ep-grid ${detail?.episodes?.length > 20 ? 'scroll-mode' : ''}`}>
             {detail?.episodes?.map((ep) => (
