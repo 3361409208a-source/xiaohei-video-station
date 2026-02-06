@@ -72,6 +72,7 @@ html, body {
 
 a {
   text-decoration: none !important;
+  color: inherit;
 }
 
 /* Header Styles */
@@ -123,6 +124,7 @@ a {
 .nav-links {
   display: flex;
   gap: 32px;
+  align-items: center;
 }
 
 .nav-link {
@@ -151,6 +153,7 @@ a {
   border-radius: 2px;
 }
 
+/* 🔥 特殊样式按钮 */
 .nav-link.special-link {
   background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
   color: white !important;

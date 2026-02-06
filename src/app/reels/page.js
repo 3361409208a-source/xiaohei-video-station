@@ -12,17 +12,9 @@ function PlayerContent() {
   const containerRef = useRef(null);
   const isFetchingRef = useRef(false);
 
-  const getUrlData = () => {
-    const slug = params?.slug ? decodeURIComponent(params.slug) : null;
-    const idFromSlug = slug ? slug.split('-').pop() : null;
-    return {
-        id: idFromSlug || searchParams.get('id'),
-        src: searchParams.get('src')
-    };
-  };
-
-  const [currentId, setCurrentId] = useState(getUrlData().id);
-  const [currentSrc, setCurrentSrc] = useState(getUrlData().src);
+  // 状态管理
+  const [currentId, setCurrentId] = useState(null);
+  const [currentSrc, setCurrentSrc] = useState(null);
   const [mainVideo, setMainVideo] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
@@ -31,64 +23,71 @@ function PlayerContent() {
   const [switching, setSwitching] = useState(false);
   const [isDescCollapsed, setIsDescCollapsed] = useState(true);
 
-  // 初始化推荐
+  // 1. 初始化环境与推荐列表
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    const randomPage = Math.floor(Math.random() * 15) + 1;
-    fetch(`/api/search?t=解说&pg=${randomPage}&_ts=${Date.now()}`)
+    
+    // 预加载一波推荐
+    const rp = Math.floor(Math.random() * 15) + 1;
+    fetch(`/api/search?t=解说&pg=${rp}&_ts=${Date.now()}`)
       .then(res => res.json())
       .then(data => setRecommendations(data.slice(0, 10)));
+
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // 监听 URL 变化，同步播放状态
+  // 2. 核心：监听 URL 变化并同步状态（解决刷新丢失）
   useEffect(() => {
-    const { id, src } = getUrlData();
+    const slug = params?.slug ? decodeURIComponent(params.slug) : null;
+    const id = slug ? slug.split('-').pop() : searchParams.get('id');
+    const src = searchParams.get('src');
+    
     if (id && id !== currentId) setCurrentId(id);
     if (src && src !== currentSrc) setCurrentSrc(src);
-  }, [params, searchParams]);
+    
+    // 如果完全没 ID（直接访问 /reels），自动去抓一个最新的
+    if (!id && !isFetchingRef.current) {
+        fetch('/api/search?t=解说&pg=1')
+          .then(res => res.json())
+          .then(data => {
+            if (data.length > 0) {
+              const first = data[Math.floor(Math.random() * 5)]; // 随机前5个
+              const target = first || data[0];
+              router.replace(`/reels/${encodeURIComponent(`${target.title}-${target.id}`)}?src=${encodeURIComponent(target.source)}`);
+            }
+          });
+    }
+  }, [params, searchParams, currentId, currentSrc]);
 
-  // 加载视频逻辑
+  // 3. 加载视频详情（局部更新，不刷页）
   useEffect(() => {
-    const loadVideo = async () => {
-      if (isFetchingRef.current) return;
-      if (!currentId) {
-          const res = await fetch('/api/search?t=解说&pg=1');
-          const data = await res.json();
-          if (data.length > 0) {
-              const target = data[0];
-              router.replace(`/reels/${encodeURIComponent(`${target.title}-${target.id}`)}?src=${encodeURIComponent(target.source_name || target.source)}`);
-          }
-          return;
-      }
-
-      isFetchingRef.current = true;
-      setSwitching(true); // 仅触发播放器蒙层
+    if (!currentId || !currentSrc) return;
+    
+    const loadDetail = async () => {
+      setSwitching(true);
       try {
         const res = await fetch(`/api/detail?id=${currentId}&src=${encodeURIComponent(currentSrc)}`);
         const data = await res.json();
         if (data && data.title) {
             setMainVideo(data);
-            const cleanTitle = data.title.replace('[电影解说]', '').replace('电影解说', '').trim();
-            // 静默更新正片列表，不触发整体闪烁
-            fetch(`/api/search?q=${encodeURIComponent(cleanTitle)}`)
+            // 搜索正片资源
+            const cleanT = data.title.replace('[电影解说]', '').replace('电影解说', '').trim();
+            fetch(`/api/search?q=${encodeURIComponent(cleanT)}`)
               .then(r => r.json())
               .then(sData => {
-                  const films = sData.filter(item => !item.category.includes('解说') && !item.title.includes('解说'));
-                  setSearchResults(films);
+                  setSearchResults(sData.filter(i => !i.category.includes('解说') && !i.title.includes('解说')));
               });
         }
       } catch (e) {}
       setLoading(false);
       setSwitching(false);
-      isFetchingRef.current = false;
     };
-    loadVideo();
+    loadDetail();
   }, [currentId, currentSrc]);
 
-  // 播放器秒切逻辑
+  // 4. 播放器挂载与秒切逻辑
   useEffect(() => {
     if (typeof window !== 'undefined' && mainVideo?.episodes?.[0]?.url) {
       const videoUrl = mainVideo.episodes[0].url;
@@ -97,7 +96,6 @@ function PlayerContent() {
       Promise.all([import('hls.js'), import('dplayer')]).then(([HlsModule, DPlayerModule]) => {
         const DPlayer = DPlayerModule.default;
         if (dpInstance.current) {
-            // 原地秒切视频流
             dpInstance.current.switchVideo({ url: videoUrl, type: isHls ? 'hls' : 'normal' });
             dpInstance.current.play();
         } else if (playerRef.current) {
@@ -113,7 +111,7 @@ function PlayerContent() {
     }
   }, [mainVideo]);
 
-  // 切换解说逻辑
+  // 操作函数
   const handleSwitch = (v) => {
     const newSrc = v.source_name || v.source;
     const newSlug = encodeURIComponent(`${v.title}-${v.id}`);
@@ -122,220 +120,228 @@ function PlayerContent() {
     setCurrentSrc(newSrc);
   };
 
-  // 核心：直接播放正片逻辑（原地无感切换）
-  const playFilmDirectly = (film) => {
+  const playOriginal = (film) => {
     const newSrc = film.source_name || film.source;
     const newSlug = encodeURIComponent(`${film.title}-${film.id}`);
-    // 1. 同步 URL（无感更新）
     window.history.pushState(null, '', `/reels/${newSlug}?src=${encodeURIComponent(newSrc)}`);
-    // 2. 触发状态更新，useEffect 会捕捉并调用 switchVideo
     setCurrentId(film.id);
     setCurrentSrc(newSrc);
-    // 3. 回到播放器顶部
     if (!isMobile) window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // 移动端滚动监听
+  const toggleMoyu = () => {
+    if (dpInstance.current?.video) {
+        if (document.pictureInPictureElement) document.exitPictureInPicture();
+        else dpInstance.current.video.requestPictureInPicture().catch(() => alert("当前不支持摸鱼模式"));
+    }
+  };
+
   const handleMobileScroll = () => {
     if (!containerRef.current || !isMobile) return;
-    const scrollTop = containerRef.current.scrollTop;
-    const height = window.innerHeight;
-    const index = Math.round(scrollTop / height);
-    if (index > 0 && recommendations[index - 1]) {
-        const target = recommendations[index - 1];
+    const index = Math.round(containerRef.current.scrollTop / window.innerHeight);
+    if (index > 0 && recommendations[index-1]) {
+        const target = recommendations[index-1];
         if (target.id !== currentId) handleSwitch(target);
     }
   };
 
-  const toggleMoyu = () => {
-    if (dpInstance.current && dpInstance.current.video) {
-        if (document.pictureInPictureElement) document.exitPictureInPicture();
-        else dpInstance.current.video.requestPictureInPicture().catch(() => alert("不支持摸鱼模式"));
-    }
-  };
+  if (loading && !mainVideo) return <div className="loading-full">🌚 正在为您连接信号...</div>;
 
-  if (loading && !mainVideo) return <div className="loading-screen-full">🌚 正在连接解说信号...</div>;
-
-  const PCLayout = (
-    <>
-      <header className="site-header">
-        <div className="container header-inner">
-          <Link href="/" className="logo-area">
-            <img src="/logo.png" alt="logo" className="logo-img" />
-            <div className="logo-text">小黑<span>搜影</span></div>
-          </Link>
-          <nav className="nav-links">
-            {['首页', '🔥 去看解说', '电影', '电视剧', '短剧', '动漫'].map(name => (
-              <Link key={name} href={name === '首页' ? '/' : (name.includes('解说') ? '/reels' : `/channel/${name}`)} className={`nav-link ${name.includes('解说') ? 'special-link' : ''}`}>{name}</Link>
-            ))}
-          </nav>
-        </div>
-      </header>
-      <main className="player-grid container">
-        <div className="left-zone">
-          <div className="video-viewport">
-            <div ref={playerRef} style={{ width:'100%', height:'100%' }}></div>
-            {switching && <div className="switching-overlay">🌚 正在加载资源...</div>}
-          </div>
-          <div className="video-meta-box">
-            <div className="title-row">
-              <div className="title-text-group">
-                <h1 className="v-primary-title">{mainVideo?.title.replace('[电影解说]', '')}</h1>
-                <p className="v-subtitle">{mainVideo?.category} · {currentSrc}</p>
+  return (
+    <div className={isMobile ? "mobile-reels-page" : "pc-player-page"}>
+      {/* --- PC 布局 --- */}
+      {!isMobile && (
+        <>
+          <header className="site-header">
+            <div className="container header-inner">
+              <Link href="/" className="logo-area">
+                <img src="/logo.png" alt="logo" className="logo-img" />
+                <div className="logo-text">小黑<span>搜影</span></div>
+              </Link>
+              <nav className="nav-links">
+                {['首页', '🔥 去看解说', '电影', '电视剧', '短剧', '动漫'].map(n => (
+                  <Link key={n} href={n==='首页'?'/':(n.includes('解说')?'/reels':`/channel/${n}`)} 
+                        className={`nav-link ${n.includes('解说')?'special-link':''}`}>{n}</Link>
+                ))}
+              </nav>
+            </div>
+          </header>
+          <main className="container player-grid">
+            <div className="left-zone">
+              <div className="video-viewport">
+                <div ref={playerRef} style={{ width:'100%', height:'100%' }}></div>
+                {switching && <div className="player-overlay">🌚 正在切片中...</div>}
               </div>
-              <div className="action-button-group">
-                <button onClick={toggleMoyu} className="moyu-action-btn">🐟 摸鱼模式</button>
-                <div className="premium-btn-container" style={{ minWidth: '160px' }}>
-                  {searchResults.length > 0 && (
-                    <button onClick={() => playFilmDirectly(searchResults[0])} className="premium-play-btn">
-                      <span className="icon">⚡</span><span className="text">观看正片</span><div className="btn-glow"></div>
-                    </button>
-                  )}
+              <div className="meta-card">
+                <div className="title-row">
+                  <div className="title-grp">
+                    <h1>{mainVideo?.title.replace('[电影解说]','')}</h1>
+                    <p>{mainVideo?.category} · {currentSrc}</p>
+                  </div>
+                  <div className="action-grp">
+                    <button onClick={toggleMoyu} className="moyu-btn">🐟 摸鱼模式</button>
+                    <div className="original-btn-placeholder">
+                        {searchResults.length > 0 && (
+                        <button onClick={() => playOriginal(searchResults[0])} className="premium-flash-btn">
+                            <span className="icon">⚡</span><span>直接看正片</span><div className="btn-glow"></div>
+                        </button>
+                        )}
+                    </div>
+                  </div>
                 </div>
+                <div className="desc-box">
+                  <label>内 容 详 情</label>
+                  <p className={isDescCollapsed ? 'line-1' : ''}>
+                    {mainVideo?.description?.replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ') || '暂无简介'}
+                  </p>
+                  <div className="toggle" onClick={() => setIsDescCollapsed(!isDescCollapsed)}>
+                    {isDescCollapsed ? '展开详情 ▾' : '收起详情 ▴'}
+                  </div>
+                </div>
+                {searchResults.length > 0 && (
+                  <div className="alt-resources">
+                    <h3>相关正片资源 ({searchResults.length})</h3>
+                    <div className="res-list">
+                      {searchResults.map(f => (
+                        <div key={f.id} className="res-card" onClick={() => playOriginal(f)}>
+                          <img src={f.poster} />
+                          <div className="res-info">
+                            <div className="res-title">{f.title}</div>
+                            <div className="res-meta">{f.year} · {f.source_name || f.source}</div>
+                          </div>
+                          <div className="res-btn">立即播放</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            <div className="description-section">
-              <div className="desc-label">内 容 详 情</div>
-              <p className={`desc-content ${isDescCollapsed ? 'collapsed' : ''}`}>{mainVideo?.description ? mainVideo.description.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ') : '精彩内容正在赶来...'}</p>
-              <div className="toggle-btn" onClick={() => setIsDescCollapsed(!isDescCollapsed)}>{isDescCollapsed ? '展开详情 ▾' : '收起详情 ▴'}</div>
-            </div>
-            {searchResults.length > 0 && (
-              <div className="search-results-list">
-                <div className="results-header">相关正片资源 ({searchResults.length})</div>
-                <div className="results-grid">
-                  {searchResults.map(film => (
-                    <div key={film.id} className="result-card" onClick={() => playFilmDirectly(film)}>
-                      <div className="result-thumb"><img src={film.poster} /></div>
-                      <div className="result-info">
-                        <div className="result-title">{film.title}</div>
-                        <div className="result-meta">{film.year} · {film.source_name || film.source}</div>
-                      </div>
-                      <div className="play-btn-mini">立即播放</div>
+            <div className="right-sidebar">
+              <div className="sticky-box">
+                <div className="side-head"><h3>推荐解说</h3><button onClick={() => {
+                  fetch(`/api/search?t=解说&pg=${Math.floor(Math.random()*20)+1}`).then(r=>r.json()).then(d=>setRecommendations(d.slice(0,6)));
+                }}>🔄 换一批</button></div>
+                <div className="side-list">
+                  {recommendations.map(v => (
+                    <div key={v.id} onClick={() => handleSwitch(v)} className={`side-item ${currentId===v.id?'active':''}`}>
+                      <div className="side-thumb"><img src={v.poster} /></div>
+                      <div className="side-text"><h4>{v.title.replace('[电影解说]','')}</h4><p>{v.year} · {v.source}</p></div>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-        <div className="right-sidebar">
-          <div className="sticky-sidebar">
-            <div className="sidebar-header-row"><h3>推荐解说</h3><button className="btn-refresh" onClick={() => {
-              const rp = Math.floor(Math.random()*20)+1;
-              fetch(`/api/search?t=解说&pg=${rp}`).then(res => res.json()).then(data => setRecommendations(data.slice(0, 6)));
-            }}>🔄 换一批</button></div>
-            <div className="recommendation-column">
-              {recommendations.map(v => (
-                <div key={v.id} onClick={() => handleSwitch(v)} className={`rec-card-mini ${currentId === v.id ? 'active' : ''}`}>
-                  <div className="thumb"><img src={v.poster} alt="" /></div>
-                  <div className="text-content"><h4>{v.title.replace('[电影解说]', '')}</h4><p>{v.year} · {v.source}</p></div>
-                </div>
-              ))}
+            </div>
+          </main>
+        </>
+      )}
+
+      {/* --- 移动布局 --- */}
+      {isMobile && (
+        <div className="mobile-scroll-box" ref={containerRef} onScroll={handleMobileScroll}>
+          <div className="m-snap-item">
+            <div ref={playerRef} style={{ width:'100%', height:'100%' }}></div>
+            {switching && <div className="m-tip">正在秒切...</div>}
+            <div className="m-overlay">
+              <div className="m-info">
+                <h3>{mainVideo?.title.replace('[电影解说]','')}</h3>
+                <p>{mainVideo?.category} · {mainVideo?.year}</p>
+              </div>
+              <div className="m-actions">
+                <div onClick={toggleMoyu} className="m-btn"><div>🐟</div><span>摸鱼</span></div>
+                {searchResults.length > 0 && <div onClick={() => playOriginal(searchResults[0])} className="m-btn highlight"><div>⚡</div><span>正片</span></div>}
+                <Link href="/" className="m-btn"><div>🏠</div><span>首页</span></Link>
+              </div>
             </div>
           </div>
+          {recommendations.map(v => (
+            <div key={v.id} className="m-snap-item">
+              <div className="m-placeholder" style={{ backgroundImage: `url(${v.poster})` }}>
+                <div className="m-mask"></div>
+                <div className="m-loading">🌚 准备加载下一部...</div>
+              </div>
+              <div className="m-overlay mini">
+                <div className="m-info"><h3>{v.title.replace('[电影解说]','')}</h3></div>
+              </div>
+            </div>
+          ))}
         </div>
-      </main>
-    </>
-  );
+      )}
 
-  const MobileLayout = (
-    <div className="mobile-reels-scroll-container" ref={containerRef} onScroll={handleMobileScroll}>
-      <div className="reel-view-snap">
-        <div className="player-host-mobile">
-            <div ref={playerRef} style={{ width:'100%', height:'100%' }}></div>
-            {switching && <div className="mobile-loading-tip">正在秒切...</div>}
-        </div>
-        <MobileOverlay video={mainVideo} searchResults={searchResults} playFilmDirectly={playFilmDirectly} toggleMoyu={toggleMoyu} />
-      </div>
-      {recommendations.map((v) => (
-        <div key={v.id} className="reel-view-snap">
-          <div className="reel-placeholder" style={{ backgroundImage: `url(${v.poster})` }}>
-            <div className="blur-overlay"></div>
-            <div className="loading-center">🌚 准备加载下一条...</div>
-          </div>
-          <div className="m-overlay mini-overlay">
-            <div className="m-info"><h3>{v.title.replace('[电影解说]', '')}</h3></div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-
-  return (
-    <div className={isMobile ? "mobile-reels-page" : "dark-player-page"}>
-      {!isMobile ? PCLayout : MobileLayout}
       <style jsx>{`
-        .dark-player-page { background: var(--bg-main); min-height: 100vh; color: var(--text-main); }
-        .dark-player-page :global(a) { text-decoration: none !important; }
-        .player-grid { display: grid; grid-template-columns: 1fr 350px; gap: 40px; padding-top: 30px; padding-bottom: 50px; align-items: start; }
-        .left-zone { min-width: 0; }
-        .video-viewport { background: #000; border-radius: 16px; overflow: hidden; aspect-ratio: 16/9; border: 1px solid rgba(255,255,255,0.05); position: relative; box-shadow: 0 30px 60px rgba(0,0,0,0.6); }
-        .switching-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10; color: var(--primary); font-weight: 800; font-size: 20px; }
-        .video-meta-box { margin-top: 30px; background: var(--bg-card); padding: 30px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.03); }
-        .title-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; gap: 30px; }
-        .v-primary-title { font-size: 24px; font-weight: 900; color: #fff; line-height: 1.2; margin-bottom: 8px; }
-        .v-subtitle { color: var(--text-dim); font-size: 13px; }
-        .action-button-group { display: flex; gap: 15px; align-items: center; }
-        .moyu-action-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #ccc; padding: 10px 18px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.3s; }
-        .moyu-action-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
-        .premium-play-btn { border:none; cursor:pointer; position: relative; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: #fff !important; padding: 12px 24px; border-radius: 12px; font-weight: 800; display: flex; align-items: center; gap: 10px; transition: 0.3s; white-space: nowrap; width: 100%; justify-content: center; }
-        .premium-play-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(225,29,72,0.4); }
+        .pc-player-page { background: var(--bg-main); min-height: 100vh; color: var(--text-main); }
+        .player-grid { display: grid; grid-template-columns: 1fr 350px; gap: 40px; padding: 30px 24px 80px; align-items: start; }
+        .video-viewport { background: #000; border-radius: 16px; overflow: hidden; aspect-ratio: 16/9; position: relative; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 30px 60px rgba(0,0,0,0.5); }
+        .player-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10; color: var(--primary); font-weight: 800; font-size: 20px; }
+        
+        .meta-card { margin-top: 30px; background: var(--bg-card); padding: 30px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.03); }
+        .title-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+        .title-grp h1 { font-size: 24px; font-weight: 900; margin-bottom: 8px; }
+        .title-grp p { color: var(--text-dim); font-size: 13px; }
+        .action-grp { display: flex; gap: 15px; align-items: center; }
+        
+        .moyu-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #ccc; padding: 10px 18px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: 0.3s; }
+        .moyu-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        
+        .premium-flash-btn { border: none; cursor: pointer; position: relative; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: #fff; padding: 12px 24px; border-radius: 12px; font-weight: 800; display: flex; align-items: center; gap: 10px; transition: 0.3s; box-shadow: 0 10px 20px rgba(225,29,72,0.4); }
+        .premium-flash-btn:hover { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(225,29,72,0.6); }
         .btn-glow { position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); transition: 0.5s; }
-        .premium-play-btn:hover .btn-glow { left: 100%; transition: 0.8s; }
-        .description-section { border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; margin-bottom: 30px; position: relative; }
-        .desc-label { font-size: 11px; color: var(--primary); font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; }
-        .desc-content { line-height: 1.8; color: #a1a1aa; font-size: 14px; }
-        .desc-content.collapsed { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-        .toggle-btn { color: var(--primary); font-size: 12px; font-weight: 700; cursor: pointer; margin-top: 8px; text-align: center; }
-        .search-results-list { border-top: 2px solid rgba(225, 29, 72, 0.1); padding-top: 25px; }
-        .results-header { font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 15px; }
-        .results-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
-        .result-card { background: rgba(255,255,255,0.015); padding: 10px; border-radius: 10px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: 0.2s; }
-        .result-card:hover { background: rgba(225,29,72,0.05); transform: translateX(5px); }
-        .result-thumb { width: 50px; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; flex-shrink: 0; }
-        .result-thumb img { width: 100%; height: 100%; object-fit: cover; }
-        .result-info { flex: 1; }
-        .result-title { color: #fff; font-size: 14px; font-weight: 600; margin-bottom: 3px; }
-        .result-meta { font-size: 11px; color: var(--text-dim); }
-        .play-btn-mini { font-size: 11px; color: var(--primary); font-weight: 800; border: 1px solid var(--primary); padding: 3px 10px; border-radius: 100px; }
-        .right-sidebar { flex-shrink: 0; width: 350px; }
-        .sticky-sidebar { position: sticky; top: 100px; }
-        .sidebar-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px; }
-        .sidebar-header-row h3 { font-size: 15px; font-weight: 800; }
-        .btn-refresh { background: rgba(225, 29, 72, 0.1); border: 1px solid rgba(225, 29, 72, 0.2); color: var(--primary); cursor: pointer; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 100px; }
-        .recommendation-column { display: flex; flex-direction: column; gap: 10px; }
-        .rec-card-mini { display: flex; gap: 10px; cursor: pointer; padding: 8px; border-radius: 10px; transition: 0.2s; align-items: flex-start; }
-        .rec-card-mini:hover { background: rgba(255,255,255,0.03); transform: translateX(3px); }
-        .rec-card-mini.active { background: rgba(225, 29, 72, 0.05); border: 1px solid rgba(225, 29, 72, 0.1); }
-        .thumb { width: 120px; aspect-ratio: 16/9; border-radius: 6px; overflow: hidden; background: #1a1a1a; flex-shrink: 0; }
-        .thumb img { width: 100%; height: 100%; object-fit: cover; }
-        .text-content h4 { font-size: 13px; color: #e4e4e7; margin-bottom: 4px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 700; }
-        .text-content p { font-size: 11px; color: var(--text-dim); }
-        .loading-screen-full { height: 100vh; background: var(--bg-main); display: flex; align-items: center; justify-content: center; color: var(--primary); font-weight: 900; font-size: 22px; }
-        .mobile-reels-scroll-container { height: 100vh; overflow-y: scroll; scroll-snap-type: y mandatory; background: #000; -webkit-overflow-scrolling: touch; scroll-behavior: smooth; }
-        .reel-view-snap { height: 100vh; width: 100%; scroll-snap-align: start; position: relative; overflow: hidden; }
-        .player-host-mobile { width: 100%; height: 100%; position: relative; z-index: 1; }
-        .mobile-loading-tip { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); color: var(--primary); font-weight: bold; z-index: 5; }
-        .reel-placeholder { width: 100%; height: 100%; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; position: relative; }
-        .blur-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(20px); }
-        .loading-center { position: relative; z-index: 2; color: #fff; font-size: 14px; opacity: 0.6; }
+        .premium-flash-btn:hover .btn-glow { left: 100%; transition: 0.8s; }
+
+        .desc-box { border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; margin-bottom: 30px; }
+        .desc-box label { font-size: 11px; color: var(--primary); font-weight: 900; letter-spacing: 2px; margin-bottom: 12px; display: block; }
+        .desc-box p { line-height: 1.8; color: #a1a1aa; font-size: 14px; }
+        .desc-box p.line-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+        .toggle { color: var(--primary); font-size: 12px; font-weight: 700; cursor: pointer; margin-top: 10px; text-align: center; }
+
+        .alt-resources { border-top: 1px solid rgba(255,255,255,0.05); padding-top: 25px; }
+        .alt-resources h3 { font-size: 16px; font-weight: 800; margin-bottom: 20px; }
+        .res-list { display: grid; grid-template-columns: 1fr; gap: 12px; }
+        .res-card { background: rgba(255,255,255,0.02); padding: 12px; border-radius: 12px; display: flex; align-items: center; gap: 15px; cursor: pointer; transition: 0.3s; border: 1px solid transparent; }
+        .res-card:hover { background: rgba(225,29,72,0.05); border-color: rgba(225,29,72,0.2); transform: translateX(5px); }
+        .res-card img { width: 50px; aspect-ratio: 2/3; border-radius: 4px; object-fit: cover; }
+        .res-info { flex: 1; }
+        .res-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+        .res-meta { font-size: 12px; color: var(--text-dim); }
+        .res-btn { font-size: 11px; color: var(--primary); font-weight: 800; border: 1px solid var(--primary); padding: 4px 12px; border-radius: 100px; }
+
+        .right-sidebar { width: 350px; }
+        .sticky-box { position: sticky; top: 100px; }
+        .side-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px; }
+        .side-head h3 { font-size: 15px; font-weight: 800; }
+        .side-head button { background: rgba(225,29,72,0.1); border: 1px solid rgba(225,29,72,0.2); color: var(--primary); padding: 5px 12px; border-radius: 100px; font-size: 11px; font-weight: 700; cursor: pointer; }
+        .side-list { display: flex; flex-direction: column; gap: 12px; }
+        .side-item { display: flex; gap: 12px; cursor: pointer; padding: 10px; border-radius: 12px; transition: 0.2s; align-items: flex-start; }
+        .side-item:hover { background: rgba(255,255,255,0.03); transform: translateX(5px); }
+        .side-item.active { background: rgba(225,29,72,0.05); border: 1px solid rgba(225,29,72,0.1); }
+        .side-thumb { width: 120px; aspect-ratio: 16/9; border-radius: 6px; overflow: hidden; background: #1a1a1a; }
+        .side-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .side-text h4 { font-size: 13px; font-weight: 700; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .side-text p { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+        .loading-full { height: 100vh; background: #000; display: flex; align-items: center; justify-content: center; color: var(--primary); font-weight: 900; font-size: 22px; }
+
+        .mobile-scroll-box { height: 100vh; overflow-y: scroll; scroll-snap-type: y mandatory; background: #000; -webkit-overflow-scrolling: touch; }
+        .m-snap-item { height: 100vh; width: 100%; scroll-snap-align: start; position: relative; }
+        .m- tip { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); color: var(--primary); font-weight: bold; z-index: 5; }
+        .m-placeholder { width: 100%; height: 100%; background-size: cover; background-position: center; position: relative; }
+        .m-mask { position: absolute; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(20px); }
+        .m-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; opacity: 0.5; font-size: 14px; }
+        
         .m-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 50px 20px; background: linear-gradient(transparent, rgba(0,0,0,0.98)); display: flex; justify-content: space-between; align-items: flex-end; z-index: 10; pointer-events: none; }
-        .mini-overlay { padding: 80px 20px 40px; }
         .m-info { max-width: 70%; color: #fff; }
         .m-info h3 { font-size: 20px; font-weight: 900; margin-bottom: 8px; }
         .m-actions { display: flex; flex-direction: column; gap: 24px; pointer-events: auto; }
-        .m-btn-premium, .m-btn-normal { display: flex; flex-direction: column; align-items: center; gap: 6px; color: #fff; text-decoration: none; cursor: pointer; }
-        .m-icon-inner { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; backdrop-filter: blur(10px); background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); }
-        .m-btn-premium .m-icon-inner { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 20px rgba(225, 29, 72, 0.6); }
-        .m-btn-premium span { font-weight: 800; color: var(--primary); background: #fff; padding: 2px 8px; border-radius: 4px; transform: scale(0.8); }
-        .m-btn-normal span { font-size: 11px; font-weight: 600; opacity: 0.8; }
-        @media (max-width: 1200px) { .player-grid { grid-template-columns: 1fr; } .right-sidebar { width: 100%; } .sticky-sidebar { position: static; } }
+        .m-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; color: #fff; cursor: pointer; }
+        .m-btn div { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(10px); }
+        .m-btn.highlight div { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 20px rgba(225,29,72,0.6); }
+        .m-btn span { font-size: 11px; font-weight: 600; opacity: 0.8; }
       `}</style>
     </div>
   );
 }
 
-function MobileOverlay({ video, searchResults, playFilmDirectly, toggleMoyu }) {
+function MobileOverlay({ video, searchResults, playOriginal, toggleMoyu }) {
     return (
         <div className="m-overlay">
             <div className="m-info">
@@ -343,15 +349,9 @@ function MobileOverlay({ video, searchResults, playFilmDirectly, toggleMoyu }) {
               <p>{video?.category} · {video?.year}</p>
             </div>
             <div className="m-actions">
-              <div onClick={toggleMoyu} className="m-btn-normal">
-                <div className="m-icon-inner">🐟</div><span>摸鱼</span>
-              </div>
-              {searchResults.length > 0 ? (
-                  <div onClick={() => playFilmDirectly(searchResults[0])} className="m-btn-premium">
-                    <div className="m-icon-inner">⚡</div><span>正片</span>
-                  </div>
-              ) : null}
-              <Link href="/" className="m-btn-normal"><div className="m-icon-inner">🏠</div><span>首页</span></Link>
+              <div onClick={toggleMoyu} className="m-btn"><div>🐟</div><span>摸鱼</span></div>
+              {searchResults.length > 0 && <div onClick={() => playOriginal(searchResults[0])} className="m-btn highlight"><div>⚡</div><span>正片</span></div>}
+              <Link href="/" className="m-btn"><div>🏠</div><span>首页</span></Link>
             </div>
         </div>
     );
@@ -359,7 +359,7 @@ function MobileOverlay({ video, searchResults, playFilmDirectly, toggleMoyu }) {
 
 export default function GenericPlayerPage() {
   return (
-    <Suspense fallback={<div style={{ height:'100vh', background:'#0a0a0a', display:'flex', alignItems:'center', justifyContent:'center', color:'#e11d48' }}>🌚 全速加载中...</div>}>
+    <Suspense fallback={<div className="loading-full">🌚 全速加载中...</div>}>
       <PlayerContent />
     </Suspense>
   );
