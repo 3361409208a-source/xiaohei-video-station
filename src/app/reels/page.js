@@ -76,6 +76,7 @@ function ReelsContent() {
       </main>
 
       <style jsx>{`
+        .page-wrapper :global(a) { text-decoration: none !important; }
         .reels-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 30px; margin-top: 20px; }
         .reel-card-styled { background: var(--bg-card); border-radius: 16px; overflow: hidden; text-decoration: none; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid rgba(255,255,255,0.05); }
         .reel-card-styled:hover { transform: translateY(-8px); border-color: var(--primary); box-shadow: 0 15px 30px rgba(0,0,0,0.4); }
