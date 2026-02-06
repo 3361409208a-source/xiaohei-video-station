@@ -11,6 +11,7 @@ function PlayerContent() {
   const dpInstance = useRef(null);
   const containerRef = useRef(null);
   const isFetchingRef = useRef(false);
+  const scrollTimeoutRef = useRef(null);
 
   // 状态管理
   const [currentId, setCurrentId] = useState(null);
@@ -18,6 +19,7 @@ function PlayerContent() {
   const [mainVideo, setMainVideo] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
+  const [preFetchedUrls, setPreFetchedUrls] = useState({}); // 预加载的播放地址池
   const [isMobile, setIsMobile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
@@ -30,15 +32,32 @@ function PlayerContent() {
     window.addEventListener('resize', checkMobile);
     
     // 预加载一波推荐
-    const rp = Math.floor(Math.random() * 15) + 1;
+    const rp = Math.floor(Math.random() * 20) + 1;
     fetch(`/api/search?t=解说&pg=${rp}&_ts=${Date.now()}`)
       .then(res => res.json())
-      .then(data => setRecommendations(data.slice(0, 10)));
+      .then(data => {
+          const recs = data.slice(0, 15);
+          setRecommendations(recs);
+          // 启动预加载：默默抓取前 3 个推荐位的播放地址
+          recs.slice(0, 3).forEach(v => preFetchDetail(v.id, v.source_name || v.source));
+      });
 
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // 2. 核心：监听 URL 变化并同步状态（解决刷新丢失）
+  // 预加载工具函数
+  const preFetchDetail = async (id, src) => {
+    if (preFetchedUrls[id]) return;
+    try {
+        const res = await fetch(`/api/detail?id=${id}&src=${encodeURIComponent(src)}`);
+        const data = await res.json();
+        if (data?.episodes?.[0]?.url) {
+            setPreFetchedUrls(prev => ({ ...prev, [id]: data.episodes[0].url }));
+        }
+    } catch(e) {}
+  };
+
+  // 2. 核心：同步 URL 与状态
   useEffect(() => {
     const slug = params?.slug ? decodeURIComponent(params.slug) : null;
     const id = slug ? slug.split('-').pop() : searchParams.get('id');
@@ -47,21 +66,19 @@ function PlayerContent() {
     if (id && id !== currentId) setCurrentId(id);
     if (src && src !== currentSrc) setCurrentSrc(src);
     
-    // 如果完全没 ID（直接访问 /reels），自动去抓一个最新的
     if (!id && !isFetchingRef.current) {
         fetch('/api/search?t=解说&pg=1')
           .then(res => res.json())
           .then(data => {
             if (data.length > 0) {
-              const first = data[Math.floor(Math.random() * 5)]; // 随机前5个
-              const target = first || data[0];
+              const target = data[Math.floor(Math.random() * 5)] || data[0];
               router.replace(`/reels/${encodeURIComponent(`${target.title}-${target.id}`)}?src=${encodeURIComponent(target.source)}`);
             }
           });
     }
   }, [params, searchParams, currentId, currentSrc]);
 
-  // 3. 加载视频详情（局部更新，不刷页）
+  // 3. 加载详情
   useEffect(() => {
     if (!currentId || !currentSrc) return;
     
@@ -72,13 +89,20 @@ function PlayerContent() {
         const data = await res.json();
         if (data && data.title) {
             setMainVideo(data);
-            // 搜索正片资源
             const cleanT = data.title.replace('[电影解说]', '').replace('电影解说', '').trim();
             fetch(`/api/search?q=${encodeURIComponent(cleanT)}`)
               .then(r => r.json())
               .then(sData => {
+                  setSearchResults(sData.filter(i => !i.category.includes('解说') && !i.title.includes('解setSearchResults')));
                   setSearchResults(sData.filter(i => !i.category.includes('解说') && !i.title.includes('解说')));
               });
+            
+            // 加载当前后，顺便预加载下一条
+            const currentIdx = recommendations.findIndex(v => v.id === currentId);
+            if (currentIdx !== -1 && recommendations[currentIdx+1]) {
+                const next = recommendations[currentIdx+1];
+                preFetchDetail(next.id, next.source_name || next.source);
+            }
         }
       } catch (e) {}
       setLoading(false);
@@ -87,7 +111,7 @@ function PlayerContent() {
     loadDetail();
   }, [currentId, currentSrc]);
 
-  // 4. 播放器挂载与秒切逻辑
+  // 4. 播放器渲染
   useEffect(() => {
     if (typeof window !== 'undefined' && mainVideo?.episodes?.[0]?.url) {
       const videoUrl = mainVideo.episodes[0].url;
@@ -111,7 +135,6 @@ function PlayerContent() {
     }
   }, [mainVideo]);
 
-  // 操作函数
   const handleSwitch = (v) => {
     const newSrc = v.source_name || v.source;
     const newSlug = encodeURIComponent(`${v.title}-${v.id}`);
@@ -132,24 +155,29 @@ function PlayerContent() {
   const toggleMoyu = () => {
     if (dpInstance.current?.video) {
         if (document.pictureInPictureElement) document.exitPictureInPicture();
-        else dpInstance.current.video.requestPictureInPicture().catch(() => alert("当前不支持摸鱼模式"));
+        else dpInstance.current.video.requestPictureInPicture().catch(() => alert("不支持摸鱼模式"));
     }
   };
 
+  // 移动端滚动防抖切换
   const handleMobileScroll = () => {
     if (!containerRef.current || !isMobile) return;
-    const index = Math.round(containerRef.current.scrollTop / window.innerHeight);
-    if (index > 0 && recommendations[index-1]) {
-        const target = recommendations[index-1];
-        if (target.id !== currentId) handleSwitch(target);
-    }
+    
+    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    
+    scrollTimeoutRef.current = setTimeout(() => {
+        const index = Math.round(containerRef.current.scrollTop / window.innerHeight);
+        if (index > 0 && recommendations[index-1]) {
+            const target = recommendations[index-1];
+            if (target.id !== currentId) handleSwitch(target);
+        }
+    }, 150); // 150ms 停稳后再加载，防止滑动过程中疯狂请求
   };
 
   if (loading && !mainVideo) return <div className="loading-full">🌚 正在为您连接信号...</div>;
 
   return (
     <div className={isMobile ? "mobile-reels-page" : "pc-player-page"}>
-      {/* --- PC 布局 --- */}
       {!isMobile && (
         <>
           <header className="site-header">
@@ -175,7 +203,7 @@ function PlayerContent() {
               <div className="meta-card">
                 <div className="title-row">
                   <div className="title-grp">
-                    <h1>{mainVideo?.title.replace('[电影解说]','')}</h1>
+                    <h1>{mainVideo?.title?.replace('[电影解说]','')}</h1>
                     <p>{mainVideo?.category} · {currentSrc}</p>
                   </div>
                   <div className="action-grp">
@@ -183,7 +211,7 @@ function PlayerContent() {
                     <div className="original-btn-placeholder">
                         {searchResults.length > 0 && (
                         <button onClick={() => playOriginal(searchResults[0])} className="premium-flash-btn">
-                            <span className="icon">⚡</span><span>直接看正片</span><div className="btn-glow"></div>
+                            <span className="icon">⚡</span><span>观看正片</span><div className="btn-glow"></div>
                         </button>
                         )}
                     </div>
@@ -240,11 +268,13 @@ function PlayerContent() {
       {isMobile && (
         <div className="mobile-scroll-box" ref={containerRef} onScroll={handleMobileScroll}>
           <div className="m-snap-item">
-            <div ref={playerRef} style={{ width:'100%', height:'100%' }}></div>
-            {switching && <div className="m-tip">正在秒切...</div>}
+            <div className="player-host-mobile">
+                <div ref={playerRef} style={{ width:'100%', height:'100%' }}></div>
+                {switching && <div className="m-tip">正在秒切...</div>}
+            </div>
             <div className="m-overlay">
               <div className="m-info">
-                <h3>{mainVideo?.title.replace('[电影解说]','')}</h3>
+                <h3>{mainVideo?.title?.replace('[电影解说]','')}</h3>
                 <p>{mainVideo?.category} · {mainVideo?.year}</p>
               </div>
               <div className="m-actions">
@@ -258,7 +288,7 @@ function PlayerContent() {
             <div key={v.id} className="m-snap-item">
               <div className="m-placeholder" style={{ backgroundImage: `url(${v.poster})` }}>
                 <div className="m-mask"></div>
-                <div className="m-loading">🌚 准备加载下一部...</div>
+                <div className="m-loading">🌚 智能加载中...</div>
               </div>
               <div className="m-overlay mini">
                 <div className="m-info"><h3>{v.title.replace('[电影解说]','')}</h3></div>
@@ -303,7 +333,7 @@ function PlayerContent() {
         .res-info { flex: 1; }
         .res-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
         .res-meta { font-size: 12px; color: var(--text-dim); }
-        .res-btn { font-size: 11px; color: var(--primary); font-weight: 800; border: 1px solid var(--primary); padding: 4px 12px; border-radius: 100px; }
+        .res-btn { font-size: 11px; color: var(--primary); font-weight: 800; border: 1px solid var(--primary); padding: 3px 10px; border-radius: 100px; }
 
         .right-sidebar { width: 350px; }
         .sticky-box { position: sticky; top: 100px; }
@@ -313,7 +343,7 @@ function PlayerContent() {
         .side-list { display: flex; flex-direction: column; gap: 12px; }
         .side-item { display: flex; gap: 12px; cursor: pointer; padding: 10px; border-radius: 12px; transition: 0.2s; align-items: flex-start; }
         .side-item:hover { background: rgba(255,255,255,0.03); transform: translateX(5px); }
-        .side-item.active { background: rgba(225,29,72,0.05); border: 1px solid rgba(225,29,72,0.1); }
+        .side-item.active { background: rgba(225, 29, 72, 0.05); border: 1px solid rgba(225, 29, 72, 0.1); }
         .side-thumb { width: 120px; aspect-ratio: 16/9; border-radius: 6px; overflow: hidden; background: #1a1a1a; }
         .side-thumb img { width: 100%; height: 100%; object-fit: cover; }
         .side-text h4 { font-size: 13px; font-weight: 700; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -323,7 +353,7 @@ function PlayerContent() {
 
         .mobile-scroll-box { height: 100vh; overflow-y: scroll; scroll-snap-type: y mandatory; background: #000; -webkit-overflow-scrolling: touch; }
         .m-snap-item { height: 100vh; width: 100%; scroll-snap-align: start; position: relative; }
-        .m- tip { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); color: var(--primary); font-weight: bold; z-index: 5; }
+        .m-tip { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); color: var(--primary); font-weight: bold; z-index: 5; text-shadow: 0 0 10px rgba(0,0,0,0.8); }
         .m-placeholder { width: 100%; height: 100%; background-size: cover; background-position: center; position: relative; }
         .m-mask { position: absolute; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(20px); }
         .m-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; opacity: 0.5; font-size: 14px; }
@@ -332,7 +362,7 @@ function PlayerContent() {
         .m-info { max-width: 70%; color: #fff; }
         .m-info h3 { font-size: 20px; font-weight: 900; margin-bottom: 8px; }
         .m-actions { display: flex; flex-direction: column; gap: 24px; pointer-events: auto; }
-        .m-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; color: #fff; cursor: pointer; }
+        .m-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; color: #fff; cursor: pointer; text-decoration: none; }
         .m-btn div { width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(10px); }
         .m-btn.highlight div { background: var(--primary); border-color: var(--primary); box-shadow: 0 0 20px rgba(225,29,72,0.6); }
         .m-btn span { font-size: 11px; font-weight: 600; opacity: 0.8; }
@@ -345,7 +375,7 @@ function MobileOverlay({ video, searchResults, playOriginal, toggleMoyu }) {
     return (
         <div className="m-overlay">
             <div className="m-info">
-              <h3>{video?.title.replace('[电影解说]', '')}</h3>
+              <h3>{video?.title?.replace('[电影解说]', '')}</h3>
               <p>{video?.category} · {video?.year}</p>
             </div>
             <div className="m-actions">
