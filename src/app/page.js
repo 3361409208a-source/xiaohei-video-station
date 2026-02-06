@@ -14,7 +14,7 @@ function HomeContent() {
 
   const categories = [
     { name: '首页', path: '/', active: true },
-    { name: '电影解说', path: '/reels' },
+    { name: '去看解说', path: '/reels' },
     { name: '电影', path: '/channel/电影' },
     { name: '电视剧', path: '/channel/电视剧' },
     { name: '短剧', path: '/channel/短剧' },
