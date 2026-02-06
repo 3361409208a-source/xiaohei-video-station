@@ -60,6 +60,7 @@ def run_collector(max_pages_per_source=1000):
                                     "poster": item.get("vod_pic", ""),
                                     "source": engine['name'],
                                     "category": item.get("type_name", "影视"),
+                                    "year": item.get("vod_year", ""),
                                     "update_time": item.get("vod_time")
                                 }
                                 source_new_count += 1

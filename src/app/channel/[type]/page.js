@@ -91,7 +91,7 @@ function ChannelContent({ paramsPromise }) {
                     <div className="movie-quality-tag">{item.source_tip || '高清'}</div>
                   </div>
                   <div className="movie-info-name">{item.title}</div>
-                  <div className="movie-info-meta">{item.year || '2024'} · {item.category || type}</div>
+                  <div className="movie-info-meta">{item.year || '2026'} · {item.category || type}</div>
                 </Link>
               ))}
             </div>
