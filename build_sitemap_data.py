@@ -84,4 +84,4 @@ def run_collector(max_pages_per_source=1000):
     log(f"Done! Final unique items: {len(movie_list)}")
 
 if __name__ == "__main__":
-    run_collector(max_pages_per_source=1000)
+    run_collector(max_pages_per_source=5000)
