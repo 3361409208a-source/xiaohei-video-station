@@ -51,7 +51,7 @@ function MobileReelItem({ video, isActive }) {
 
     const handleMobilePlayOriginal = () => {
         const cleanT = video.title.replace('[电影解说]', '').replace('电影解说', '').trim();
-        router.push(`/?q=${encodeURIComponent(cleanT)}`);
+        window.open(`/?q=${encodeURIComponent(cleanT)}`, '_blank');
     };
 
     return (
