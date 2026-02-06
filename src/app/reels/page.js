@@ -7,6 +7,7 @@ function PlayerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const params = useParams();
+  const containerRef = useRef(null);
   
   const getUrlData = () => {
     const slug = params?.slug ? decodeURIComponent(params.slug) : null;
