@@ -32,6 +32,7 @@ CONFIG_FILE = "config.json"
 SOURCES_FILE = "sources.json"
 TRENDS_FILE = "search_trends.json"
 SITEMAP_DATA = "public/sitemap_data.json"
+REELS_DATA = "public/reels_data.json"  # 新增：专门存储解说视频
 ADMIN_PASSWORD = "7897"
 
 def load_json(path, default):
@@ -56,6 +57,7 @@ def verify_admin(x_admin_token: str = Header(None)):
 
 # 内存缓存
 _DATA_CACHE = {"items": [], "time": 0}
+_REELS_CACHE = {"items": [], "time": 0}  # 新增：解说视频缓存
 
 def get_full_data():
     global _DATA_CACHE
@@ -71,6 +73,21 @@ def get_full_data():
                     print(f"🌚 [CACHE_LOAD] Loaded {len(raw)} items")
             except: pass
     return _DATA_CACHE["items"]
+
+def get_reels_data():
+    """获取解说视频数据"""
+    global _REELS_CACHE
+    now = time.time()
+    if not _REELS_CACHE["items"] or (now - _REELS_CACHE["time"] > 300):
+        if os.path.exists(REELS_DATA):
+            try:
+                with open(REELS_DATA, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+                    _REELS_CACHE["items"] = raw
+                    _REELS_CACHE["time"] = now
+                    print(f"🎬 [REELS_CACHE] Loaded {len(raw)} reels")
+            except: pass
+    return _REELS_CACHE["items"]
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 
@@ -164,6 +181,14 @@ def search(request: Request, q: str = Query(None), t: str = Query(None), pg: int
                     unique_results[item['title']] = item
     return list(unique_results.values())
 
+@app.get("/api/reels")
+def get_reels(pg: int = Query(1)):
+    """专门获取解说视频的接口"""
+    reels = get_reels_data()
+    page_size = 30
+    start = (pg - 1) * page_size
+    return reels[start:start+page_size]
+
 @app.get("/api/latest")
 def get_latest():
     data = get_full_data()
@@ -189,22 +214,39 @@ def get_public_config():
 def get_detail(id: str, src: str):
     sources = get_active_sources()
     engine = next((e for e in sources if e["name"] == urllib.parse.unquote(src)), sources[0] if sources else None)
-    if not engine: return None
-    try:
-        res = requests.get(f"{engine['api']}?ac=detail&ids={id}", timeout=5, headers=HEADERS).json()
-        if res.get("list"):
-            item = res["list"][0]
-            play_url = item.get("vod_play_url", "")
-            ep_list = []
-            if play_url:
-                for p in play_url.replace('\r', '').split('#'):
-                    if "$" in p:
-                        try:
-                            n, u = p.split("$", 1)
-                            if ".m3u8" in u.lower() or ".mp4" in u.lower(): ep_list.append({"name": n, "url": u})
-                        except: continue
-            return {"title": item["vod_name"], "poster": item["vod_pic"], "category": item["type_name"], "description": item["vod_content"], "episodes": ep_list}
-    except: pass
+    
+    # 先尝试从实时API获取
+    if engine:
+        try:
+            res = requests.get(f"{engine['api']}?ac=detail&ids={id}", timeout=5, headers=HEADERS).json()
+            if res.get("list"):
+                item = res["list"][0]
+                play_url = item.get("vod_play_url", "")
+                ep_list = []
+                if play_url:
+                    for p in play_url.replace('\r', '').split('#'):
+                        if "$" in p:
+                            try:
+                                n, u = p.split("$", 1)
+                                if ".m3u8" in u.lower() or ".mp4" in u.lower(): ep_list.append({"name": n, "url": u})
+                            except: continue
+                return {"title": item["vod_name"], "poster": item["vod_pic"], "category": item.get("type_name", ""), "description": item.get("vod_content", ""), "episodes": ep_list, "year": item.get("vod_year", ""), "area": item.get("vod_area", "")}
+        except: pass
+    
+    # 降级：从sitemap_data.json查找
+    all_data = get_full_data()
+    for item in all_data:
+        if str(item.get("id")) == str(id):
+            return {
+                "title": item.get("title", ""),
+                "poster": item.get("poster", ""),
+                "category": item.get("category", ""),
+                "description": item.get("description", ""),
+                "episodes": item.get("episodes", []),
+                "year": item.get("year", ""),
+                "area": item.get("area", "")
+            }
+    
     return None
 
 # --- 管理接口 ---
@@ -301,7 +343,8 @@ def get_sitemap_raw(chunk: int = Query(None)):
 
 @app.on_event("startup")
 async def startup_event():
-    subprocess.Popen([sys.executable, "build_sitemap_data.py"])
+    # 启动后台定期采集任务（每6小时更新一次）
+    subprocess.Popen([sys.executable, "build_sitemap_data.py", "--daemon"])
 
 if __name__ == "__main__":
     import uvicorn
