@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id') || '0';
-  const baseUrl = 'https://xiaohei-video-station.vercel.app';
+  const baseUrl = 'https://www.xiaoheiv.top';
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
   try {
@@ -11,10 +11,10 @@ export async function GET(request) {
     if (!res.ok) return new NextResponse('', { status: 404 });
     const movies = await res.json();
 
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/1">\n`;
     movies.forEach(m => {
       const url = `${baseUrl}/movie/${encodeURIComponent(`${m.title}-${m.id}`)}?src=${encodeURIComponent(m.source || '默认')}`;
-      xml += `  <url><loc>${url}</loc><changefreq>weekly</changefreq></url>\n`;
+      xml += `  <url><loc>${url}</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n`;
     });
     xml += `</urlset>`;
 

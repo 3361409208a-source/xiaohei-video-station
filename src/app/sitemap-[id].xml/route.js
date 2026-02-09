@@ -6,7 +6,7 @@ export async function GET(request, { params: paramsPromise }) {
   const params = await paramsPromise;
   // 提取 sitemap-1.xml 中的 1
   const id = params.id.replace('.xml', '');
-  const baseUrl = 'https://xiaohei-video-station.vercel.app';
+  const baseUrl = 'https://www.xiaoheiv.top';
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://xiaohei-video-station-production.up.railway.app';
 
   try {
@@ -14,10 +14,10 @@ export async function GET(request, { params: paramsPromise }) {
     if (!res.ok) return new NextResponse('', { status: 404 });
     const movies = await res.json();
 
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/1">\n`;
     movies.forEach(m => {
       const url = `${baseUrl}/movie/${encodeURIComponent(`${m.title}-${m.id}`)}?src=${encodeURIComponent(m.source || '默认')}`;
-      xml += `  <url><loc>${url}</loc><changefreq>weekly</changefreq><priority>0.5</priority></url>\n`;
+      xml += `  <url><loc>${url}</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n`;
     });
     xml += `</urlset>`;
 
