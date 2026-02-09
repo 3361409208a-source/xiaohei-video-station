@@ -11,7 +11,7 @@ export async function GET(request) {
     if (!res.ok) return new NextResponse('', { status: 404 });
     const movies = await res.json();
 
-    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/1">\n`;
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
     movies.forEach(m => {
       const url = `${baseUrl}/movie/${encodeURIComponent(`${m.title}-${m.id}`)}?src=${encodeURIComponent(m.source || '默认')}`;
       xml += `  <url><loc>${url}</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n`;
