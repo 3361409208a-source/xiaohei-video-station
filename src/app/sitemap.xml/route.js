@@ -14,7 +14,7 @@ export async function GET() {
 
     // 重点：起始位置绝对不能有空格
     let xml = `<?xml version="1.0" encoding="UTF-8"?>`;
-    xml += `\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/1">`;
+    xml += `\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
 
     for (let i = 0; i <= totalChunks; i++) {
       xml += `\n  <sitemap>`;
@@ -31,7 +31,7 @@ export async function GET() {
       }
     });
   } catch (e) {
-    const fallback = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/1">\n<url><loc>${baseUrl}/</loc></url>\n</urlset>`;
+    const fallback = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n<url><loc>${baseUrl}/</loc></url>\n</urlset>`;
     return new NextResponse(fallback, { headers: { 'Content-Type': 'application/xml; charset=utf-8' } });
   }
 }

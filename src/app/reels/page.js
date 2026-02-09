@@ -18,7 +18,7 @@ function MobileReelItem({ video, isActive, preload = false }) {
     useEffect(() => {
         if ((isActive || preload) && !detail && !error) {
             const cacheKey = `${video.id}-${video.source_name || video.source}`;
-            
+
             // 检查缓存
             if (detailCache.has(cacheKey)) {
                 setDetail(detailCache.get(cacheKey));
@@ -102,7 +102,12 @@ function MobileReelItem({ video, isActive, preload = false }) {
         <div className="mobile-reel-unit">
             <div className="player-area" onClick={() => dp.current?.toggle()}>
                 <div ref={playerRef} style={{ width: '100%', height: '100%' }}></div>
-                {!detail && isActive && !error && <div className="loading-tip">🌚 正在接入信号...</div>}
+                {!detail && isActive && !error && (
+                    <div className="loading-tip">
+                        <img src="/logo.gif" alt="loading" style={{ width: '60px', height: '60px', borderRadius: '10px' }} />
+                        <div style={{ marginTop: '8px' }}>正在接入信号...</div>
+                    </div>
+                )}
                 {error && isActive && (
                     <div className="error-tip">
                         <div>😢 {error}</div>
@@ -139,7 +144,7 @@ function MobileReelItem({ video, isActive, preload = false }) {
             <style jsx>{`
                 .mobile-reel-unit { height: 100vh; width: 100vw; position: relative; background: #000; scroll-snap-align: start; overflow: hidden; }
                 .player-area { width: 100%; height: 100%; position: relative; }
-                .loading-tip { position: absolute; top: 40%; left: 50%; transform: translateX(-50%); color: #e11d48; font-weight: bold; }
+                .loading-tip { position: absolute; top: 40%; left: 50%; transform: translateX(-50%); color: #e11d48; font-weight: bold; text-align: center; }
                 .error-tip { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); color: #fff; text-align: center; z-index: 20; }
                 .error-tip button { margin-top: 10px; padding: 8px 20px; background: #e11d48; border: none; border-radius: 8px; color: #fff; font-weight: bold; cursor: pointer; }
                 .poster-placeholder { width: 100%; height: 100%; background-size: cover; background-position: center; filter: blur(10px); }
@@ -189,11 +194,11 @@ function PlayerContent() {
             console.log('⚠️ 正在切换中，忽略点击');
             return;
         }
-        
+
         const cacheKey = `${videoId}-${videoSrc}`;
-        
+
         console.log('🎬 切换视频:', videoTitle, 'ID:', videoId);
-        
+
         // 检查缓存
         if (detailCache.has(cacheKey)) {
             console.log('🚀 从缓存加载:', videoTitle);
@@ -210,7 +215,7 @@ function PlayerContent() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
             return;
         }
-        
+
         setSwitching(true);
         console.log('📡 从API加载:', videoTitle);
         fetch(`/api/detail?id=${videoId}&src=${encodeURIComponent(videoSrc)}`)
@@ -256,7 +261,7 @@ function PlayerContent() {
                                 console.log('📦 预加载完成:', v.title);
                             }
                         })
-                        .catch(() => {});
+                        .catch(() => { });
                 }
             });
         }
@@ -265,41 +270,41 @@ function PlayerContent() {
     useEffect(() => {
         if (loadedRef.current) return; // 防止重复加载
         loadedRef.current = true;
-        
+
         const checkMobile = () => setIsMobile(window.innerWidth <= 768);
         checkMobile();
         window.addEventListener('resize', checkMobile);
-        
+
         const init = async () => {
             try {
                 // 先获取总数，然后随机选择页码
                 const totalPages = 48; // 1439个视频 / 30 = 约48页
                 const rp = Math.floor(Math.random() * totalPages) + 1;
                 console.log(`🎲 随机加载第 ${rp} 页解说视频`);
-                
+
                 const res = await fetch(`/api/reels?pg=${rp}`);
                 const data = await res.json();
                 console.log(`📊 获取到 ${data.length} 个解说视频`);
-                
+
                 if (data.length === 0) {
                     console.error('❌ 没有获取到视频数据');
                     setLoading(false);
                     return;
                 }
-                
+
                 // 打乱顺序，增加随机性
                 const shuffled = data.sort(() => Math.random() - 0.5);
                 const videoList = shuffled.slice(0, 20);
                 setAllVideos(videoList);
-                
+
                 // 立即加载第一个视频（不等待setAllVideos完成）
                 if (!isMobile && videoList.length > 0) {
                     const firstVideo = videoList[0];
                     const videoSrc = firstVideo.source_name || firstVideo.source || '量子高清';
                     const cacheKey = `${firstVideo.id}-${videoSrc}`;
-                    
+
                     console.log(`🚀 立即加载首个视频: ${firstVideo.title}`);
-                    
+
                     // 立即开始加载第一个视频
                     fetch(`/api/detail?id=${firstVideo.id}&src=${encodeURIComponent(videoSrc)}`)
                         .then(r => r.json())
@@ -313,35 +318,35 @@ function PlayerContent() {
                         })
                         .catch(err => console.error('❌ 首个视频加载失败:', err));
                 }
-                
+
                 setLoading(false);
             } catch (error) {
                 console.error('❌ 初始化失败:', error);
                 setLoading(false);
             }
         };
-        
+
         init();
         return () => window.removeEventListener('resize', checkMobile);
     }, [isMobile]);
 
     useEffect(() => {
         if (isMobile) return;
-        
+
         // 只处理URL中有id的情况（用户直接访问特定视频）
         const slug = params?.slug ? decodeURIComponent(params.slug) : null;
         const id = slug ? slug.split('-').pop() : searchParams.get('id');
         const src = searchParams.get('src');
-        
+
         // 如果没有id，说明是首次访问，已经在init中处理了
         if (!id) return;
-        
+
         // 如果已经有正在播放的视频，且URL中的id与当前视频id相同，则不重新加载
         if (pcMainVideo && pcMainVideo.id === id) {
             console.log('⏭️ 跳过重复加载，当前已播放该视频');
             return;
         }
-        
+
         // 加载URL指定的视频
         const loadPc = async () => {
             setSwitching(true);
@@ -375,19 +380,24 @@ function PlayerContent() {
                     dpInstance.current.play();
                 } else if (playerRef.current) {
                     // 首次创建播放器
-                    dpInstance.current = new DPlayerModule.default({ 
-                        container: playerRef.current, 
-                        autoplay: true, 
+                    dpInstance.current = new DPlayerModule.default({
+                        container: playerRef.current,
+                        autoplay: true,
                         theme: '#e11d48',
                         preload: 'auto', // 预加载
-                        video: { url, type: isHls ? 'hls' : 'normal' } 
+                        video: { url, type: isHls ? 'hls' : 'normal' }
                     });
                 }
             });
         }
     }, [pcMainVideo, isMobile]);
 
-    if (loading) return <div className="full-loading">🌚 正在接入信号...</div>;
+    if (loading) return (
+        <div className="full-loading">
+            <img src="/logo.gif" alt="loading" style={{ width: '80px', height: '80px', borderRadius: '12px' }} />
+            <div style={{ marginTop: '15px' }}>正在接入信号...</div>
+        </div>
+    );
 
     if (isMobile) {
         return (
@@ -396,9 +406,9 @@ function PlayerContent() {
                 if (idx !== currentIndex) setCurrentIndex(idx);
             }}>
                 {allVideos.map((v, i) => (
-                    <MobileReelItem 
-                        key={v.id} 
-                        video={v} 
+                    <MobileReelItem
+                        key={v.id}
+                        video={v}
                         isActive={i === currentIndex}
                         preload={Math.abs(i - currentIndex) === 1} // 预加载相邻视频
                     />
@@ -430,7 +440,12 @@ function PlayerContent() {
                 <div className="left-zone">
                     <div className="video-viewport">
                         <div ref={playerRef} style={{ width: '100%', height: '100%' }}></div>
-                        {switching && <div className="overlay">🌚 正在秒切中...</div>}
+                        {switching && (
+                            <div className="overlay">
+                                <img src="/logo.gif" alt="loading" style={{ width: '60px', height: '60px', borderRadius: '10px' }} />
+                                <div style={{ marginLeft: '12px' }}>正在秒切中...</div>
+                            </div>
+                        )}
                     </div>
                     <div className="meta-card">
                         <div className="title-row">
@@ -519,12 +534,12 @@ function PlayerContent() {
                         <button onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            
+
                             // 换一批：重新获取随机页的视频
                             const totalPages = 48;
                             const rp = Math.floor(Math.random() * totalPages) + 1;
                             console.log(`🔄 换一批：加载第 ${rp} 页`);
-                            
+
                             fetch(`/api/reels?pg=${rp}`)
                                 .then(res => res.json())
                                 .then(data => {
@@ -546,7 +561,7 @@ function PlayerContent() {
                         {pcRecs.length === 0 && !switching && (
                             // 骨架屏
                             <>
-                                {[1,2,3,4,5,6].map(i => (
+                                {[1, 2, 3, 4, 5, 6].map(i => (
                                     <div key={i} className="side-item skeleton">
                                         <div className="side-thumb skeleton-box"></div>
                                         <div className="side-text">

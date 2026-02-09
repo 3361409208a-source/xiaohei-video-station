@@ -114,7 +114,7 @@ function HomeContent() {
       <main className="container" style={{ flex: 1 }}>
         {loading ? (
           <div className="loading-con">
-            <div className="spinner"></div>
+            <img src="/logo.gif" alt="loading" style={{ width: '80px', height: '80px', borderRadius: '12px' }} />
             <div className="loading-text">正在搜寻全球资源...</div>
           </div>
         ) : (
@@ -157,7 +157,7 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div className="loading-con"><div className="spinner"></div></div>}>
+    <Suspense fallback={<div className="loading-con"><img src="/logo.gif" alt="loading" style={{ width: '80px', height: '80px', borderRadius: '12px' }} /></div>}>
       <HomeContent />
     </Suspense>
   );

@@ -36,7 +36,7 @@ export async function GET(request, { params: paramsPromise }) {
 
     // 重点：起始位置绝对不能有空格或换行
     let xml = `<?xml version="1.0" encoding="UTF-8"?>`;
-    xml += `\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/1">`;
+    xml += `\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
 
     movies.forEach(m => {
       // 对标题进行 XML 安全转义
