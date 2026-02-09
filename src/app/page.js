@@ -23,7 +23,7 @@ function HomeContent() {
     { name: '纪录片', path: '/channel/纪录片' }
   ];
 
-  const hotSearches = ['繁花', '沙丘 2', '周处除三害', '葬送的芙莉莲'];
+  const hotSearches = ['剑来', '小城大事'];
 
   useEffect(() => {
     fetch('/api/config').then(res => res.json()).then(data => setConfig(data));
@@ -104,7 +104,7 @@ function HomeContent() {
             <div className="hot-searches">
               <span className="hot-label">热门搜索:</span>
               {hotSearches.map(tag => (
-                <span key={tag} className="hot-tag" style={{cursor: 'pointer'}} onClick={() => { setQuery(tag); handleSearch(tag); }}>{tag}</span>
+                <span key={tag} className="hot-tag" style={{ cursor: 'pointer' }} onClick={() => { setQuery(tag); handleSearch(tag); }}>{tag}</span>
               ))}
             </div>
           </div>
@@ -127,10 +127,10 @@ function HomeContent() {
               <div className="movie-grid">
                 {displayResults.map((item, idx) => {
                   const isReel = item.category.includes('解说') || item.title.includes('解说');
-                  const targetHref = isReel 
+                  const targetHref = isReel
                     ? `/reels?id=${item.id}&src=${encodeURIComponent(item.source_name || item.source)}`
                     : `/movie/${encodeURIComponent(`${item.title}-${item.id}`)}?src=${encodeURIComponent(item.source_name || item.source)}`;
-                  
+
                   return (
                     <Link key={`${item.id}-${idx}`} href={targetHref} className="movie-card">
                       <div className="movie-poster-wrap">
