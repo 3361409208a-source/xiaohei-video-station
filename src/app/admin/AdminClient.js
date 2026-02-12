@@ -9,7 +9,9 @@ export default function AdminClient({ initialStats }) {
   const [token, setToken] = useState('');
 
   // 数据状态
+  // 数据状态
   const [collectorStatus, setCollectorStatus] = useState({ log: '', stats: { total: 0, size: '0 MB', last_modified: 'N/A' } });
+  const [stats, setStats] = useState(initialStats || { total: 0, categories: { '电影': 0, '电视剧': 0, '动漫': 0, '综艺': 0 }, lastUpdate: 'N/A' });
   const [siteConfig, setSiteConfig] = useState({ site_name: '', notice: '', footer: '', theme: '' });
   const [sources, setSources] = useState([]);
   const [testResults, setTestResults] = useState({}); // 存储各源站测试结果
@@ -25,6 +27,14 @@ export default function AdminClient({ initialStats }) {
       setToken(savedToken);
     }
   }, []);
+
+  useEffect(() => {
+    if (isAuthorized && token) {
+      fetchConfig();
+      fetchTrends();
+      fetchStats();
+    }
+  }, [isAuthorized, token]);
 
   const handleLogin = () => {
     const input = prompt("请输入管理密码：");
@@ -49,6 +59,11 @@ export default function AdminClient({ initialStats }) {
       return null;
     }
     return res;
+  };
+
+  const fetchStats = async () => {
+    const res = await apiFetch('/api/admin/stats');
+    if (res?.ok) setStats(await res.json());
   };
 
   // 1. 获取采集状态
@@ -151,7 +166,7 @@ export default function AdminClient({ initialStats }) {
               if (tab === 'config') fetchConfig();
               if (tab === 'sources') fetchSources();
               if (tab === 'collector') fetchCollectorStatus();
-              if (tab === 'stats') fetchTrends();
+              if (tab === 'stats') { fetchTrends(); fetchStats(); }
             }} style={{
               background: 'none', border: 'none', padding: '1rem', cursor: 'pointer', fontSize: '1rem',
               color: activeTab === tab ? '#38bdf8' : '#94a3b8',
@@ -172,9 +187,9 @@ export default function AdminClient({ initialStats }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
             <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px' }}>
               <h3 style={{ marginTop: 0, color: '#38bdf8' }}>收录统计</h3>
-              <div style={{ fontSize: '3rem', fontWeight: 'bold' }}>{initialStats?.total || 0} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>部影片</span></div>
+              <div style={{ fontSize: '3rem', fontWeight: 'bold' }}>{stats?.total || 0} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>部影片</span></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.5rem' }}>
-                {initialStats && Object.entries(initialStats.categories).map(([k, v]) => (
+                {stats && Object.entries(stats.categories).map(([k, v]) => (
                   <div key={k} style={{ background: '#334155', padding: '1rem', borderRadius: '8px' }}>
                     <div style={{ color: '#94a3b8', fontSize: '0.8rem' }}>{k}</div>
                     <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{v}</div>
@@ -203,8 +218,8 @@ export default function AdminClient({ initialStats }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', color: '#94a3b8' }}>全站主题</label>
-                <select 
-                  value={siteConfig.theme || ''} 
+                <select
+                  value={siteConfig.theme || ''}
                   onChange={e => {
                     setSiteConfig({ ...siteConfig, theme: e.target.value });
                     // 即时在本地预览效果
@@ -253,7 +268,7 @@ export default function AdminClient({ initialStats }) {
                 <div key={idx} style={{ background: '#334155', padding: '1.5rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      {src.name} 
+                      {src.name}
                       <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: src.active ? '#10b981' : '#ef4444', borderRadius: '4px' }}>{src.active ? '启用中' : '已停用'}</span>
                     </div>
                     <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.4rem' }}>{src.api}</div>

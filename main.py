@@ -272,26 +272,38 @@ def get_detail(id: str, src: str):
 
 # --- 管理接口 ---
 
-@app.get("/api/admin/collector-status")
-def get_collector_status(x_admin_token: str = Header(None)):
-    verify_admin(x_admin_token)
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    log_path = os.path.join(base_dir, "collector.log")
-    db_path = os.path.join(base_dir, "data.db")
-    log_content = ""
-    if os.path.exists(log_path):
-        try:
-            with open(log_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-                log_content = "".join(lines[-100:])
-        except: pass
-    
-    conn = get_db()
-    count = conn.execute("SELECT count(*) FROM movies").fetchone()[0]
-    conn.close()
-    
     data_stats = {"total": count, "size": f"{os.stat(db_path).st_size/1024/1024:.2f} MB" if os.path.exists(db_path) else "0 MB"}
     return {"log": log_content, "stats": data_stats}
+
+@app.get("/api/admin/stats")
+def get_admin_stats(x_admin_token: str = Header(None)):
+    verify_admin(x_admin_token)
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # 总数
+    total = conn.execute("SELECT count(*) FROM movies").fetchone()[0]
+    
+    # 分类统计
+    cats = { '电影': 0, '电视剧': 0, '动漫': 0, '综艺': 0 }
+    for k in cats.keys():
+        if k == '电影':
+            q = "SELECT count(*) FROM movies WHERE category LIKE '%电影%' OR category LIKE '%片%'"
+        elif k == '电视剧':
+            q = "SELECT count(*) FROM movies WHERE (category LIKE '%剧%' OR category LIKE '%电视%') AND category NOT LIKE '%短剧%'"
+        elif k == '动漫':
+            q = "SELECT count(*) FROM movies WHERE category LIKE '%动漫%' OR category LIKE '%动画%'"
+        elif k == '综艺':
+            q = "SELECT count(*) FROM movies WHERE category LIKE '%综艺%'"
+        
+        cats[k] = conn.execute(q).fetchone()[0]
+    
+    conn.close()
+    return {
+        "total": total,
+        "categories": cats,
+        "lastUpdate": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    }
 
 @app.post("/api/admin/trigger-collector")
 def trigger_collector(x_admin_token: str = Header(None)):
@@ -364,17 +376,15 @@ def get_sitemap_info():
     return {"total": count, "chunk_size": 5000}
 
 @app.get("/api/sitemap-raw")
-def get_sitemap_raw(chunk: int = Query(None)):
+def get_sitemap_raw(chunk: int = Query(0)):
     conn = get_db()
     conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
     cursor = conn.cursor()
     page_size = 5000
-    if chunk is None or chunk == 0:
-        limit = 2000
-        offset = 0
-    else:
-        limit = page_size
-        offset = (chunk - 1) * page_size
+    
+    # 按照 chunk 索引直接分页，从 0 开始
+    limit = page_size
+    offset = chunk * page_size
     
     cursor.execute("SELECT id, vod_id, title, category, update_time FROM movies LIMIT ? OFFSET ?", (limit, offset))
     rows = cursor.fetchall()
