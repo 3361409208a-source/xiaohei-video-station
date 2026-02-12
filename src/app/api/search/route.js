@@ -4,6 +4,7 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q');
   const t = searchParams.get('t');
+  const class_tag = searchParams.get('class_tag');
   const pg = searchParams.get('pg') || '1'; // 提取 pg 参数
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
@@ -12,6 +13,7 @@ export async function GET(request) {
   const backendUrl = new URL(`${API_URL}/api/search`);
   if (q) backendUrl.searchParams.append('q', q);
   if (t) backendUrl.searchParams.append('t', t);
+  if (class_tag) backendUrl.searchParams.append('class_tag', class_tag);
   backendUrl.searchParams.append('pg', pg); // 强制转发 pg 参数
 
   try {

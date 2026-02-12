@@ -7,14 +7,30 @@ function ChannelContent({ paramsPromise }) {
   const params = use(paramsPromise);
   const searchParams = useSearchParams();
   const router = useRouter();
-  
+
   const type = decodeURIComponent(params.type);
   const page = parseInt(searchParams.get('pg') || '1');
-  
+
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [subCategory, setSubCategory] = useState('全部');
+  const [subCategories, setSubCategories] = useState([]);
   const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '' });
   const [isMobile, setIsMobile] = useState(false);
+
+  // 动态获取当前大类下的所有真实子分类
+  useEffect(() => {
+    setSubCategory('全部');
+    setSubCategories([]);
+    fetch(`/api/categories?t=${encodeURIComponent(type)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setSubCategories(['全部', ...data]);
+        }
+      })
+      .catch(() => { });
+  }, [type]);
 
   useEffect(() => {
     fetch('/api/config').then(res => res.json()).then(data => setConfig(data));
@@ -29,7 +45,8 @@ function ChannelContent({ paramsPromise }) {
       setLoading(true);
       window.scrollTo(0, 0);
       try {
-        const apiCall = `/api/search?t=${encodeURIComponent(type)}&pg=${page}&_nocache=${Date.now()}`;
+        const classTag = subCategory === '全部' ? '' : subCategory;
+        const apiCall = `/api/search?t=${encodeURIComponent(type)}&class_tag=${encodeURIComponent(classTag)}&pg=${page}&_nocache=${Date.now()}`;
         const res = await fetch(apiCall, { cache: 'no-store' });
         const data = await res.json();
         if (Array.isArray(data)) setResults(data);
@@ -39,7 +56,7 @@ function ChannelContent({ paramsPromise }) {
       setLoading(false);
     };
     fetchData();
-  }, [type, page]);
+  }, [type, page, subCategory]);
 
   const goToPage = (newPage) => {
     if (newPage < 1) return;
@@ -72,9 +89,26 @@ function ChannelContent({ paramsPromise }) {
 
       <main className="container" style={{ flex: 1 }}>
         <div className="section-header">
-          <div className="section-title">最新{type}</div>
+          <div className="section-title">最新{type}{subCategory !== '全部' && ` · ${subCategory}`}</div>
           <div className="view-all" style={{ opacity: 0.5 }}>PAGE {page}</div>
         </div>
+
+        {subCategories.length > 0 && (
+          <div className="filter-bar">
+            {subCategories.map(cat => (
+              <div
+                key={cat}
+                className={`filter-item ${subCategory === cat ? 'active' : ''}`}
+                onClick={() => {
+                  setSubCategory(cat);
+                  router.push(`/channel/${encodeURIComponent(type)}?pg=1`);
+                }}
+              >
+                {cat}
+              </div>
+            ))}
+          </div>
+        )}
 
         {loading ? (
           <div className="loading-con">
@@ -86,7 +120,7 @@ function ChannelContent({ paramsPromise }) {
             <div className="movie-grid">
               {displayResults.map((item, idx) => {
                 const isReel = item.category.includes('解说') || item.title.includes('解说');
-                const targetHref = isReel 
+                const targetHref = isReel
                   ? `/reels?id=${item.id}&src=${encodeURIComponent(item.source_name || item.source)}`
                   : `/movie/${encodeURIComponent(`${item.title}-${item.id}`)}?src=${encodeURIComponent(item.source_name || item.source)}`;
 

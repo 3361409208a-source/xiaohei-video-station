@@ -142,7 +142,7 @@ def track_search(q):
     save_json(TRENDS_FILE, sorted_trends)
 
 @app.get("/api/search")
-def search(request: Request, q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
+def search(request: Request, q: str = Query(None), t: str = Query(None), class_tag: str = Query(None), pg: int = Query(1)):
     if t and not q:
         all_data = get_full_data()
         filtered = []
@@ -159,6 +159,11 @@ def search(request: Request, q: str = Query(None), t: str = Query(None), pg: int
             elif t == "电影" and ("电影" in cat or "片" in cat): match = True
             elif t in cat: match = True
             
+            # 如果有具体的二级分类标签，则精确匹配
+            if match and class_tag:
+                if cat != class_tag:
+                    match = False
+
             if match:
                 new_item = item.copy()
                 new_item["source_name"] = item.get("source", "默认")
@@ -180,6 +185,25 @@ def search(request: Request, q: str = Query(None), t: str = Query(None), pg: int
                 if item['title'] not in unique_results:
                     unique_results[item['title']] = item
     return list(unique_results.values())
+
+@app.get("/api/categories")
+def get_categories(t: str = Query(...)):
+    """获取某个大类下所有真实的子分类标签"""
+    all_data = get_full_data()
+    cats = set()
+    for item in all_data:
+        cat = str(item.get("category", ""))
+        if not cat:
+            continue
+        match = False
+        if t == "短剧" and ("短剧" in cat or "短剧" in item.get("title", "")): match = True
+        elif t == "电视剧" and ("剧" in cat or "电视" in cat) and "短剧" not in cat: match = True
+        elif t == "动漫" and ("动漫" in cat or "动画" in cat): match = True
+        elif t == "电影" and ("电影" in cat or "片" in cat): match = True
+        elif t in cat: match = True
+        if match:
+            cats.add(cat)
+    return sorted(list(cats))
 
 @app.get("/api/reels")
 def get_reels(pg: int = Query(1)):

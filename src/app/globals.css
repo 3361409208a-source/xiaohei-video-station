@@ -316,6 +316,45 @@ a {
   color: white;
 }
 
+/* Filter Bar */
+.filter-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 30px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.filter-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-item {
+  padding: 6px 16px;
+  border-radius: 100px;
+  font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.filter-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.filter-item.active {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3);
+}
+
 /* Movie Grid */
 .movie-grid {
   display: grid;
