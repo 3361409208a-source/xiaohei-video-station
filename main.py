@@ -208,7 +208,15 @@ def get_categories(t: str = Query(...)):
     
     # 返回所有标签（包含伦理，由前端决定折叠显示）
     filtered_cats = [c for c in cats if not any(k in c for k in ignored_keywords)]
-    return sorted(filtered_cats)
+    
+    # 排序逻辑：将敏感分类排在最后
+    sensitive_keywords = ["伦理", "成人", "色情", "写真", "福利"]
+    
+    def sort_key(cat):
+        is_sensitive = any(k in cat for k in sensitive_keywords)
+        return (1 if is_sensitive else 0, cat)
+    
+    return sorted(filtered_cats, key=sort_key)
 
 @app.get("/api/reels")
 def get_reels(pg: int = Query(1)):

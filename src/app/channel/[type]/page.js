@@ -95,41 +95,51 @@ function ChannelContent({ paramsPromise }) {
         </div>
 
         {subCategories.length > 0 && (
-          <div className="filter-bar-container" style={{ marginBottom: '2rem' }}>
-            <div className={`filter-bar ${showAllTags ? 'expanded' : ''}`} style={{
+          <div className="filter-bar-container" style={{ marginBottom: '2.5rem' }}>
+            <div className={`filter-bar-scroll-wrap`} style={{
               display: 'flex',
               flexWrap: 'wrap',
               gap: '0.8rem',
-              maxHeight: showAllTags ? 'none' : '48px',
+              maxHeight: showAllTags ? 'none' : (isMobile ? '40px' : '48px'),
               overflow: 'hidden',
-              transition: 'max-height 0.3s ease'
+              transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              paddingBottom: showAllTags ? '1rem' : '0'
             }}>
-              {subCategories.map(cat => (
-                <div
-                  key={cat}
-                  className={`filter-item ${subCategory === cat ? 'active' : ''}`}
-                  onClick={() => {
-                    setSubCategory(cat);
-                    router.push(`/channel/${encodeURIComponent(type)}?pg=1`);
-                  }}
-                >
-                  {cat}
-                </div>
-              ))}
+              {subCategories.map(cat => {
+                const isSensitive = cat.includes('伦理') || cat.includes('成人') || cat.includes('福利');
+                // 如果没展开，且属于敏感分类，则直接不渲染（实现真正的折叠）
+                if (!showAllTags && isSensitive) return null;
+
+                return (
+                  <div
+                    key={cat}
+                    className={`filter-item ${subCategory === cat ? 'active' : ''}`}
+                    onClick={() => {
+                      setSubCategory(cat);
+                      router.push(`/channel/${encodeURIComponent(type)}?pg=1`);
+                    }}
+                  >
+                    {cat}
+                  </div>
+                );
+              })}
             </div>
-            {subCategories.length > 10 && (
+            {(subCategories.length > 8 || subCategories.some(c => c.includes('伦理'))) && (
               <div
                 onClick={() => setShowAllTags(!showAllTags)}
                 style={{
                   cursor: 'pointer',
                   color: '#38bdf8',
                   fontSize: '0.9rem',
-                  marginTop: '0.8rem',
-                  display: 'inline-block',
-                  fontWeight: '500'
+                  marginTop: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontWeight: '500',
+                  opacity: 0.8
                 }}
               >
-                {showAllTags ? '收起分类 ↑' : '展开更多分类 ↓'}
+                {showAllTags ? '收起分类 ↑' : '更多分类 (含隐藏) ↓'}
               </div>
             )}
           </div>
