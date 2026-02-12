@@ -261,13 +261,31 @@ def get_public_config():
 
 @app.get("/api/detail")
 def get_detail(id: str, src: str):
+    conn = get_db()
+    cursor = conn.cursor()
+    # 先检查这是否是本地数据库的主键 id
+    # 有时候前端传递的是 row id 而非 vod_id
+    cursor.execute("SELECT vod_id, source_name FROM movies WHERE id = ?", (id,))
+    row = cursor.fetchone()
+    
+    actual_vod_id = id
+    actual_src = src
+    
+    if row:
+        actual_vod_id = str(row[0])
+        if not src or src == 'undefined':
+            actual_src = row[1]
+    
+    conn.close()
+    
     sources = get_active_sources()
-    engine = next((e for e in sources if e["name"] == urllib.parse.unquote(src)), sources[0] if sources else None)
+    # 优先找匹配的源，找不到找第一个
+    engine = next((e for e in sources if e["name"] == urllib.parse.unquote(actual_src or "")), sources[0] if sources else None)
     
     # 先尝试从实时API获取
     if engine:
         try:
-            res = requests.get(f"{engine['api']}?ac=detail&ids={id}", timeout=5, headers=HEADERS).json()
+            res = requests.get(f"{engine['api']}?ac=detail&ids={actual_vod_id}", timeout=5, headers=HEADERS).json()
             if res.get("list"):
                 item = res["list"][0]
                 play_url = item.get("vod_play_url", "")
@@ -279,7 +297,17 @@ def get_detail(id: str, src: str):
                                 n, u = p.split("$", 1)
                                 if ".m3u8" in u.lower() or ".mp4" in u.lower(): ep_list.append({"name": n, "url": u})
                             except: continue
-                return {"title": item["vod_name"], "poster": item["vod_pic"], "category": item.get("type_name", ""), "description": item.get("vod_content", ""), "episodes": ep_list, "year": item.get("vod_year", ""), "area": item.get("vod_area", "")}
+                return {
+                    "vod_id": actual_vod_id,
+                    "title": item["vod_name"], 
+                    "poster": item["vod_pic"], 
+                    "category": item.get("type_name", ""), 
+                    "description": item.get("vod_content", ""), 
+                    "episodes": ep_list, 
+                    "year": item.get("vod_year", ""), 
+                    "area": item.get("vod_area", ""),
+                    "source_name": engine["name"]
+                }
         except: pass
     
     conn = get_db()

@@ -72,7 +72,7 @@ export default function MoviePlayer({ id, src, initialUrl }) {
 
   const handleSwitchSource = async (alt) => {
     try {
-      const res = await fetch(`/api/detail?id=${alt.id}&src=${encodeURIComponent(alt.source_name)}`);
+      const res = await fetch(`/api/detail?id=${alt.vod_id || alt.id}&src=${encodeURIComponent(alt.source_name)}`);
       const data = await res.json();
       // 尝试匹配相同集名，或者播第一集
       const targetEp = data.episodes.find(e => e.name === currentName) || data.episodes[0];

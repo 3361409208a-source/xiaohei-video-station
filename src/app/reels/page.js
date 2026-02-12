@@ -17,7 +17,7 @@ function MobileReelItem({ video, isActive, preload = false }) {
     // 激活或预加载时加载详情
     useEffect(() => {
         if ((isActive || preload) && !detail && !error) {
-            const cacheKey = `${video.id}-${video.source_name || video.source}`;
+            const cacheKey = `${video.vod_id}-${video.source_name || video.source}`;
 
             // 检查缓存
             if (detailCache.has(cacheKey)) {
@@ -25,7 +25,7 @@ function MobileReelItem({ video, isActive, preload = false }) {
                 return;
             }
 
-            fetch(`/api/detail?id=${video.id}&src=${encodeURIComponent(video.source_name || video.source)}`)
+            fetch(`/api/detail?id=${video.vod_id}&src=${encodeURIComponent(video.source_name || video.source)}`)
                 .then(res => res.json())
                 .then(data => {
                     if (data && data.title) {
@@ -208,7 +208,7 @@ function PlayerContent() {
             // 使用当前的 allVideos 更新推荐列表
             setPcRecs(prev => {
                 const currentVideos = allVideos.length > 0 ? allVideos : prev;
-                return currentVideos.filter(item => item.id !== videoId).slice(0, 6);
+                return currentVideos.filter(item => item.vod_id !== videoId).slice(0, 6);
             });
             // 不更新URL，避免触发useEffect
             // window.history.pushState({}, '', `/reels/${encodeURIComponent(`${videoTitle}-${videoId}`)}?src=${encodeURIComponent(videoSrc)}`);
@@ -228,7 +228,7 @@ function PlayerContent() {
                     setPcSearch([]);
                     setPcRecs(prev => {
                         const currentVideos = allVideos.length > 0 ? allVideos : prev;
-                        return currentVideos.filter(item => item.id !== videoId).slice(0, 6);
+                        return currentVideos.filter(item => item.vod_id !== videoId).slice(0, 6);
                     });
                     // 不更新URL，避免触发useEffect
                     // window.history.pushState({}, '', `/reels/${encodeURIComponent(`${videoTitle}-${videoId}`)}?src=${encodeURIComponent(videoSrc)}`);
@@ -251,9 +251,9 @@ function PlayerContent() {
             const preloadIndexes = [currentIndex - 1, currentIndex + 1].filter(i => i >= 0 && i < allVideos.length);
             preloadIndexes.forEach(i => {
                 const v = allVideos[i];
-                const cacheKey = `${v.id}-${v.source_name || v.source}`;
+                const cacheKey = `${v.vod_id}-${v.source_name || v.source}`;
                 if (!detailCache.has(cacheKey)) {
-                    fetch(`/api/detail?id=${v.id}&src=${encodeURIComponent(v.source_name || v.source)}`)
+                    fetch(`/api/detail?id=${v.vod_id}&src=${encodeURIComponent(v.source_name || v.source)}`)
                         .then(r => r.json())
                         .then(data => {
                             if (data && data.title) {
@@ -301,12 +301,12 @@ function PlayerContent() {
                 if (!isMobile && videoList.length > 0) {
                     const firstVideo = videoList[0];
                     const videoSrc = firstVideo.source_name || firstVideo.source || '量子高清';
-                    const cacheKey = `${firstVideo.id}-${videoSrc}`;
+                    const cacheKey = `${firstVideo.vod_id}-${videoSrc}`;
 
                     console.log(`🚀 立即加载首个视频: ${firstVideo.title}`);
 
                     // 立即开始加载第一个视频
-                    fetch(`/api/detail?id=${firstVideo.id}&src=${encodeURIComponent(videoSrc)}`)
+                    fetch(`/api/detail?id=${firstVideo.vod_id}&src=${encodeURIComponent(videoSrc)}`)
                         .then(r => r.json())
                         .then(detailData => {
                             if (detailData && detailData.title) {
@@ -341,8 +341,8 @@ function PlayerContent() {
         // 如果没有id，说明是首次访问，已经在init中处理了
         if (!id) return;
 
-        // 如果已经有正在播放的视频，且URL中的id与当前视频id相同，则不重新加载
-        if (pcMainVideo && pcMainVideo.id === id) {
+        // 如果已经有正在播放的视频，且URL中的id与当前视频ID (vod_id) 相同，则不重新加载
+        if (pcMainVideo && (pcMainVideo.vod_id === id || pcMainVideo.id === id)) {
             console.log('⏭️ 跳过重复加载，当前已播放该视频');
             return;
         }
@@ -356,7 +356,7 @@ function PlayerContent() {
                 const data = await res.json();
                 if (data && data.title) {
                     setPcMainVideo(data);
-                    setPcRecs(allVideos.filter(v => v.id !== id).slice(0, 6));
+                    setPcRecs(allVideos.filter(v => (v.vod_id || v.id) !== id).slice(0, 6));
                 } else {
                     console.error('Invalid video data received');
                 }
@@ -407,7 +407,7 @@ function PlayerContent() {
             }}>
                 {allVideos.map((v, i) => (
                     <MobileReelItem
-                        key={v.id}
+                        key={v.vod_id || v.id}
                         video={v}
                         isActive={i === currentIndex}
                         preload={Math.abs(i - currentIndex) === 1} // 预加载相邻视频
@@ -573,12 +573,12 @@ function PlayerContent() {
                             </>
                         )}
                         {pcRecs.map(v => (
-                            <div key={v.id} onClick={(e) => {
+                            <div key={v.vod_id || v.id} onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 const videoSrc = v.source_name || v.source || '量子高清';
-                                console.log('👆 点击推荐视频:', v.title, 'ID:', v.id, 'Source:', videoSrc);
-                                switchVideo(v.id, videoSrc, v.title);
+                                console.log('👆 点击推荐视频:', v.title, 'ID:', v.vod_id || v.id, 'Source:', videoSrc);
+                                switchVideo(v.vod_id || v.id, videoSrc, v.title);
                             }} className="side-item">
                                 <div className="side-thumb"><img src={v.poster} /></div>
                                 <div className="side-text"><h4>{v.title.replace('[电影解说]', '')}</h4><p>{v.year} · {v.source}</p></div>
