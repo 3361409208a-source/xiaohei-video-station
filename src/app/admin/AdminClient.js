@@ -303,12 +303,26 @@ export default function AdminClient({ initialStats }) {
           </div>
         )}
 
-        {/* 影片库列表 (原有逻辑) */}
+        {/* 影片库列表 */}
         {activeTab === 'list' && (
           <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px' }}>
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-              {['电影', '电视剧', '动漫', '综艺'].map(cat => (
-                <button key={cat} onClick={() => { setSelectedCategory(cat); loadMovieList(cat); }} style={{ background: selectedCategory === cat ? '#38bdf8' : '#334155', border: 'none', color: '#fff', padding: '0.5rem 1.5rem', borderRadius: '6px', cursor: 'pointer' }}>{cat}</button>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+              {Object.keys(stats?.categories || {}).map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => { setSelectedCategory(cat); loadMovieList(cat); }}
+                  style={{
+                    background: selectedCategory === cat ? '#38bdf8' : '#334155',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  {cat} ({stats.categories[cat]})
+                </button>
               ))}
             </div>
             {loading ? <div style={{ textAlign: 'center', padding: '2rem' }}>加载中...</div> : (

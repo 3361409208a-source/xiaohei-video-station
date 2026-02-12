@@ -99,6 +99,23 @@ def parse_item(item, engine):
         "source_tip": engine.get("tip", "极速")
     }
 
+@app.get("/api/sitemap-raw")
+def get_sitemap_raw(page_size: int = Query(1000), chunk: int = Query(0)):
+    conn = get_db()
+    conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
+    cursor = conn.cursor()
+    
+    # 按照 chunk 索引直接分页，从 0 开始
+    limit = page_size
+    offset = chunk * page_size
+    
+    # 增加 ORDER BY id 确保分页结果不跳变
+    cursor.execute("SELECT id, vod_id, title, category, update_time FROM movies ORDER BY id LIMIT ? OFFSET ?", (limit, offset))
+    rows = cursor.fetchall()
+    results = [dict(r) for r in rows]
+    conn.close()
+    return results
+
 def track_search(q):
     if not q: return
     trends = load_json(TRENDS_FILE, {})
@@ -272,6 +289,24 @@ def get_detail(id: str, src: str):
 
 # --- 管理接口 ---
 
+@app.get("/api/admin/collector-status")
+def get_collector_status(x_admin_token: str = Header(None)):
+    verify_admin(x_admin_token)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    log_path = os.path.join(base_dir, "collector.log")
+    db_path = os.path.join(base_dir, "data.db")
+    log_content = ""
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                log_content = "".join(lines[-100:])
+        except: pass
+    
+    conn = get_db()
+    count = conn.execute("SELECT count(*) FROM movies").fetchone()[0]
+    conn.close()
+    
     data_stats = {"total": count, "size": f"{os.stat(db_path).st_size/1024/1024:.2f} MB" if os.path.exists(db_path) else "0 MB"}
     return {"log": log_content, "stats": data_stats}
 
@@ -284,19 +319,12 @@ def get_admin_stats(x_admin_token: str = Header(None)):
     # 总数
     total = conn.execute("SELECT count(*) FROM movies").fetchone()[0]
     
-    # 分类统计
-    cats = { '电影': 0, '电视剧': 0, '动漫': 0, '综艺': 0 }
-    for k in cats.keys():
-        if k == '电影':
-            q = "SELECT count(*) FROM movies WHERE category LIKE '%电影%' OR category LIKE '%片%'"
-        elif k == '电视剧':
-            q = "SELECT count(*) FROM movies WHERE (category LIKE '%剧%' OR category LIKE '%电视%') AND category NOT LIKE '%短剧%'"
-        elif k == '动漫':
-            q = "SELECT count(*) FROM movies WHERE category LIKE '%动漫%' OR category LIKE '%动画%'"
-        elif k == '综艺':
-            q = "SELECT count(*) FROM movies WHERE category LIKE '%综艺%'"
-        
-        cats[k] = conn.execute(q).fetchone()[0]
+    # 【动态分类】直接从数据库中统计所有出现过的分类名称
+    cursor.execute("SELECT category, COUNT(*) as count FROM movies GROUP BY category ORDER BY count DESC")
+    rows = cursor.fetchall()
+    
+    # 转换为字典格式返回
+    cats = {row[0]: row[1] for row in rows}
     
     conn.close()
     return {
@@ -386,11 +414,52 @@ def get_sitemap_raw(chunk: int = Query(0)):
     limit = page_size
     offset = chunk * page_size
     
-    cursor.execute("SELECT id, vod_id, title, category, update_time FROM movies LIMIT ? OFFSET ?", (limit, offset))
+    # 增加 ORDER BY id 确保分页结果不跳变
+    cursor.execute("SELECT id, vod_id, title, category, update_time FROM movies ORDER BY id LIMIT ? OFFSET ?", (limit, offset))
     rows = cursor.fetchall()
     results = [dict(r) for r in rows]
     conn.close()
     return results
+
+@app.get("/api/search")
+def search_movies(q: str = Query(None), t: str = Query(None), page: int = Query(1)):
+    conn = get_db()
+    conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
+    cursor = conn.cursor()
+    
+    page_size = 30
+    offset = (page - 1) * page_size
+    
+    where_clauses = []
+    params = []
+    
+    if q:
+        where_clauses.append("(title LIKE ? OR description LIKE ?)")
+        params.extend([f"%{q}%", f"%{q}%"])
+    
+    if t:
+        if t == "电影":
+            where_clauses.append("(category LIKE '%电影%' OR category LIKE '%片%' OR category LIKE '%蓝光%') AND category NOT LIKE '%解说%'")
+        elif t == "电视剧":
+            where_clauses.append("(category LIKE '%剧%' OR category LIKE '%连续剧%' OR category LIKE '%电视%') AND category NOT LIKE '%短剧%' AND category NOT LIKE '%解说%'")
+        elif t == "动漫":
+            where_clauses.append("(category LIKE '%动漫%' OR category LIKE '%动画%' OR category LIKE '%番剧%') AND category NOT LIKE '%解说%'")
+        elif t == "综艺":
+            where_clauses.append("(category LIKE '%综艺%' OR category LIKE '%晚会%') AND category NOT LIKE '%解说%'")
+        elif t == "其他":
+            where_clauses.append("category NOT LIKE '%电影%' AND category NOT LIKE '%片%' AND category NOT LIKE '%剧%' AND category NOT LIKE '%动漫%' AND category NOT LIKE '%综艺%'")
+        else:
+            where_clauses.append("category = ?")
+            params.append(t)
+    
+    where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+    query = f"SELECT * FROM movies {where_sql} ORDER BY update_time DESC LIMIT ? OFFSET ?"
+    params.extend([page_size, offset])
+    
+    cursor.execute(query, tuple(params))
+    items = cursor.fetchall()
+    conn.close()
+    return [dict(i) for i in items]
 
 @app.on_event("startup")
 async def startup_event():
