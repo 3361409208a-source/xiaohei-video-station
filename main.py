@@ -422,13 +422,13 @@ def get_sitemap_raw(chunk: int = Query(0)):
     return results
 
 @app.get("/api/search")
-def search_movies(q: str = Query(None), t: str = Query(None), page: int = Query(1)):
+def search_movies(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
     conn = get_db()
     conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
     cursor = conn.cursor()
     
     page_size = 30
-    offset = (page - 1) * page_size
+    offset = (pg - 1) * page_size
     
     where_clauses = []
     params = []
