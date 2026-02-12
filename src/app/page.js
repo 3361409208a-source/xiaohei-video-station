@@ -85,6 +85,7 @@ function HomeContent() {
 
   return (
     <div className="page-wrapper">
+      {!isMobile && stats && <ThreeDashboard stats={stats} isBackground={true} />}
       <header className="site-header">
         <div className="container header-inner">
           <Link href="/" className="logo-area">
@@ -105,8 +106,7 @@ function HomeContent() {
 
       <section className="hero-section">
         <div className="container">
-          {!isMobile && stats && <ThreeDashboard stats={stats} />}
-          <h1 className="hero-title" style={{ marginTop: stats ? '2rem' : '0' }}>发现属于你的 <span>精彩世界</span></h1>
+          <h1 className="hero-title">发现属于你的 <span>精彩世界</span></h1>
           <div className="search-container">
             <div className="search-bar-wrapper">
               <div className="search-icon-left">
