@@ -189,13 +189,13 @@ def get_categories(t: str = Query(...)):
     if t == "短剧":
         query += " AND (category LIKE '%短剧%' OR title LIKE '%短剧%')"
     elif t == "电视剧":
-        query += " AND (category LIKE '%剧%' OR category LIKE '%电视%') AND category NOT LIKE '%短剧%' AND category NOT LIKE '%解说%'"
+        query += " AND (category LIKE '%剧%' OR category LIKE '%电视%') AND category NOT LIKE '%短剧%'"
     elif t == "动漫":
-        query += " AND (category LIKE '%动漫%' OR category LIKE '%动画%') AND category NOT LIKE '%解说%'"
+        query += " AND (category LIKE '%动漫%' OR category LIKE '%动画%')"
     elif t == "电影":
-        query += " AND (category LIKE '%电影%' OR category LIKE '%片%' OR category LIKE '%蓝光%') AND category NOT LIKE '%解说%'"
+        # 宽泛匹配电影分类，包含蓝光等
+        query += " AND (category LIKE '%电影%' OR category LIKE '%片%' OR category LIKE '%蓝光%')"
     else:
-        # 其他明确大类使用模糊匹配
         query += " AND category LIKE ?"
         params.append(f"%{t}%")
         
@@ -203,10 +203,11 @@ def get_categories(t: str = Query(...)):
     cats = [row[0] for row in cursor.fetchall() if row[0]]
     conn.close()
     
-    # 过滤掉一些采集站常见的无意义分类标签
-    ignored_keywords = ["说明", "测试", "福利", "其它"]
-    filtered_cats = [c for c in cats if not any(k in c for k in ignored_keywords)]
+    # 彻底忽略掉的无意义标签
+    ignored_keywords = ["说明", "测试", "福利", "其它", "解说"]
     
+    # 返回所有标签（包含伦理，由前端决定折叠显示）
+    filtered_cats = [c for c in cats if not any(k in c for k in ignored_keywords)]
     return sorted(filtered_cats)
 
 @app.get("/api/reels")

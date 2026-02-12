@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import ThreeDashboard from '@/components/ThreeDashboard';
 
 export default function AdminClient({ initialStats }) {
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -184,9 +185,10 @@ export default function AdminClient({ initialStats }) {
 
         {/* 统计与热词 */}
         {activeTab === 'stats' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) 1fr', gap: '2rem' }}>
             <div style={{ background: '#1e293b', padding: '2rem', borderRadius: '12px' }}>
-              <h3 style={{ marginTop: 0, color: '#38bdf8' }}>收录统计</h3>
+              <ThreeDashboard stats={stats} />
+              <h3 style={{ marginTop: '2rem', color: '#38bdf8' }}>收录统计</h3>
               <div style={{ fontSize: '3rem', fontWeight: 'bold' }}>{stats?.total || 0} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>部影片</span></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.5rem' }}>
                 {stats && Object.entries(stats.categories).map(([k, v]) => (

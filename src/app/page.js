@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import ThreeDashboard from '@/components/ThreeDashboard';
 
 function HomeContent() {
   const searchParams = useSearchParams();
@@ -11,6 +12,7 @@ function HomeContent() {
   const [activeTab, setActiveTab] = useState('首页');
   const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '' });
   const [isMobile, setIsMobile] = useState(false);
+  const [stats, setStats] = useState(null);
 
   const categories = [
     { name: '首页', path: '/', active: true },
@@ -27,6 +29,17 @@ function HomeContent() {
 
   useEffect(() => {
     fetch('/api/config').then(res => res.json()).then(data => setConfig(data));
+    fetch('/api/admin/stats', { headers: { 'x-admin-token': '7897' } })
+      .then(res => res.json())
+      .then(data => {
+        const filteredCats = {};
+        Object.entries(data.categories || {}).forEach(([k, v]) => {
+          if (!k.includes('伦理') && !k.includes('解说')) filteredCats[k] = v;
+        });
+        setStats({ ...data, categories: filteredCats });
+      })
+      .catch(() => { });
+
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -92,7 +105,8 @@ function HomeContent() {
 
       <section className="hero-section">
         <div className="container">
-          <h1 className="hero-title">发现属于你的 <span>精彩世界</span></h1>
+          {!isMobile && stats && <ThreeDashboard stats={stats} />}
+          <h1 className="hero-title" style={{ marginTop: stats ? '2rem' : '0' }}>发现属于你的 <span>精彩世界</span></h1>
           <div className="search-container">
             <div className="search-bar-wrapper">
               <div className="search-icon-left">

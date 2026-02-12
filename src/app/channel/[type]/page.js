@@ -17,6 +17,7 @@ function ChannelContent({ paramsPromise }) {
   const [subCategories, setSubCategories] = useState([]);
   const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '' });
   const [isMobile, setIsMobile] = useState(false);
+  const [showAllTags, setShowAllTags] = useState(false);
 
   // 动态获取当前大类下的所有真实子分类
   useEffect(() => {
@@ -94,19 +95,43 @@ function ChannelContent({ paramsPromise }) {
         </div>
 
         {subCategories.length > 0 && (
-          <div className="filter-bar">
-            {subCategories.map(cat => (
+          <div className="filter-bar-container" style={{ marginBottom: '2rem' }}>
+            <div className={`filter-bar ${showAllTags ? 'expanded' : ''}`} style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '0.8rem',
+              maxHeight: showAllTags ? 'none' : '48px',
+              overflow: 'hidden',
+              transition: 'max-height 0.3s ease'
+            }}>
+              {subCategories.map(cat => (
+                <div
+                  key={cat}
+                  className={`filter-item ${subCategory === cat ? 'active' : ''}`}
+                  onClick={() => {
+                    setSubCategory(cat);
+                    router.push(`/channel/${encodeURIComponent(type)}?pg=1`);
+                  }}
+                >
+                  {cat}
+                </div>
+              ))}
+            </div>
+            {subCategories.length > 10 && (
               <div
-                key={cat}
-                className={`filter-item ${subCategory === cat ? 'active' : ''}`}
-                onClick={() => {
-                  setSubCategory(cat);
-                  router.push(`/channel/${encodeURIComponent(type)}?pg=1`);
+                onClick={() => setShowAllTags(!showAllTags)}
+                style={{
+                  cursor: 'pointer',
+                  color: '#38bdf8',
+                  fontSize: '0.9rem',
+                  marginTop: '0.8rem',
+                  display: 'inline-block',
+                  fontWeight: '500'
                 }}
               >
-                {cat}
+                {showAllTags ? '收起分类 ↑' : '展开更多分类 ↓'}
               </div>
-            ))}
+            )}
           </div>
         )}
 
