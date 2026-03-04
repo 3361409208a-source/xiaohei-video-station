@@ -88,6 +88,9 @@ export default function MoviePlayer({ id, src, initialUrl }) {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && currentUrl) {
+      // 将真实视频 URL 改为走服务端代理，绕过防盗链 403
+      const proxiedUrl = `/api/proxy?url=${encodeURIComponent(currentUrl)}`;
+
       Promise.all([
         import('hls.js'),
         import('dplayer')
@@ -96,19 +99,41 @@ export default function MoviePlayer({ id, src, initialUrl }) {
         const DPlayer = DPlayerModule.default;
 
         if (dpInstance.current) {
-          dpInstance.current.switchVideo({ url: currentUrl, type: 'hls' });
+          dpInstance.current.switchVideo({ url: proxiedUrl, type: 'hls' });
           dpInstance.current.play();
         } else {
           dpInstance.current = new DPlayer({
             container: playerRef.current,
             autoplay: true,
             theme: '#ec2d7a',
-            video: { url: currentUrl, type: 'hls' }
+            video: { url: proxiedUrl, type: 'hls' },
+            customType: {
+              hls: function (video, player) {
+                if (Hls.isSupported()) {
+                  const hls = new Hls({
+                    // 让 Hls.js 的二级请求（.ts 分片）也走代理
+                    xhrSetup: function (xhr, url) {
+                      // 已经走代理的不再重复包装
+                      if (!url.includes('/api/proxy')) {
+                        const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+                        xhr.open('GET', proxyUrl, true);
+                      }
+                    },
+                  });
+                  hls.loadSource(video.src);
+                  hls.attachMedia(video);
+                  player.hls = hls;
+                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                  // Safari 原生支持 HLS
+                  video.src = video.src;
+                }
+              },
+            },
           });
 
-          // 监听播放失败
+          // 监听播放失败，自动寻找替代资源
           dpInstance.current.on('error', () => {
-            console.log('🌚 播放失败，正在为您寻找替代资源...');
+            console.log('播放失败，正在为您寻找替代资源...');
             findAlternativeSources();
           });
         }
@@ -122,6 +147,7 @@ export default function MoviePlayer({ id, src, initialUrl }) {
       }
     };
   }, [currentUrl]);
+
 
   // 摸鱼模式（画中画）
   const toggleMoyu = () => {

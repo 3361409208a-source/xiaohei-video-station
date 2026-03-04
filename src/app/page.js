@@ -11,7 +11,7 @@ function HomeContent() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('首页');
   const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '' });
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(null); // null 表示尚未在客户端确定
   const [stats, setStats] = useState(null);
 
   const categories = [
@@ -81,11 +81,12 @@ function HomeContent() {
     }
   }, [searchParams]);
 
-  const displayResults = isMobile ? results.slice(0, 15) : results;
+  // isMobile 为 null 时（SSR/挂载前），默认展示全部，避免 hydration 不一致
+  const displayResults = isMobile === true ? results.slice(0, 15) : results;
 
   return (
     <div className="page-wrapper">
-      {!isMobile && stats && <ThreeDashboard stats={stats} isBackground={true} />}
+      {isMobile === false && stats && <ThreeDashboard stats={stats} isBackground={true} />}
       <header className="site-header">
         <div className="container header-inner">
           <Link href="/" className="logo-area">

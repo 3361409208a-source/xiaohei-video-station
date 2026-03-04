@@ -92,10 +92,26 @@ function DataCore({ total, isBackground }) {
 }
 
 export default function ThreeDashboard({ stats, isBackground = false }) {
-    if (!stats) return null;
-
-    const categories = Object.entries(stats.categories || {}).slice(0, 12); // Show more in background
+    const categories = stats ? Object.entries(stats.categories || {}).slice(0, 12) : [];
     const colors = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+
+    // 用 useMemo 固定每个节点的随机 y 值，避免每次重渲染生成不同随机数
+    // 必须在 early return 之前调用，遵守 React Hooks 规则
+    const nodePositions = useMemo(() => {
+        return categories.map(([label, count], idx) => {
+            const angle = (idx / categories.length) * Math.PI * 2;
+            const radius = isBackground ? (10 + Math.sin(idx) * 5) : (6 + Math.sin(idx) * 2);
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            // 用确定性算法替代 Math.random()，基于 idx 生成固定的 y 偏移
+            const seedVal = (Math.sin(idx * 9301 + 49297) * 233280) % 1;
+            const y = (seedVal - 0.5) * (isBackground ? 15 : 4);
+            return { label, count, x, y, z };
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [stats, isBackground]);
+
+    if (!stats) return null;
 
     const containerStyle = isBackground ? {
         position: 'fixed',
@@ -105,7 +121,7 @@ export default function ThreeDashboard({ stats, isBackground = false }) {
         height: '100vh',
         zIndex: -1,
         pointerEvents: 'none',
-        background: '#020617' // Base background
+        background: '#020617'
     } : {
         width: '100%',
         height: '500px',
@@ -144,25 +160,17 @@ export default function ThreeDashboard({ stats, isBackground = false }) {
 
                 <DataCore total={stats.total} isBackground={isBackground} />
 
-                {categories.map(([label, count], idx) => {
-                    const angle = (idx / categories.length) * Math.PI * 2;
-                    const radius = isBackground ? (10 + Math.sin(idx) * 5) : (6 + Math.sin(idx) * 2);
-                    const x = Math.cos(angle) * radius;
-                    const z = Math.sin(angle) * radius;
-                    const y = (Math.random() - 0.5) * (isBackground ? 15 : 4);
-
-                    return (
-                        <FloatingNode
-                            key={label}
-                            position={[x, y, z]}
-                            color={colors[idx % colors.length]}
-                            size={(isBackground ? 0.4 : 0.6) + (count / stats.total) * (isBackground ? 1 : 2)}
-                            label={label}
-                            count={count}
-                            isBackground={isBackground}
-                        />
-                    );
-                })}
+                {nodePositions.map(({ label, count, x, y, z }, idx) => (
+                    <FloatingNode
+                        key={label}
+                        position={[x, y, z]}
+                        color={colors[idx % colors.length]}
+                        size={(isBackground ? 0.4 : 0.6) + (count / stats.total) * (isBackground ? 1 : 2)}
+                        label={label}
+                        count={count}
+                        isBackground={isBackground}
+                    />
+                ))}
             </Canvas>
         </div>
     );
