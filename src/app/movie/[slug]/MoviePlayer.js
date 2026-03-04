@@ -98,7 +98,6 @@ export default function MoviePlayer({ id, src, initialUrl }) {
   useEffect(() => {
     if (typeof window !== 'undefined' && currentUrl) {
       const backendBase = process.env.NEXT_PUBLIC_API_URL || '';
-      const proxiedUrl = `${backendBase}/api/proxy?url=${encodeURIComponent(currentUrl)}`;
 
       Promise.all([
         import('hls.js'),
@@ -107,50 +106,56 @@ export default function MoviePlayer({ id, src, initialUrl }) {
         const Hls = HlsModule.default;
         const DPlayer = DPlayerModule.default;
 
+        // 智能播放：先直连，失败后再走代理
+        // 避免 Railway 数据中心 IP 被 CDN 封锁（比如 IP 白名单限制导致代理 404）
+        let triedProxy = false;
+
+        const buildHls = (url) => {
+          const hls = new Hls();
+          hls.loadSource(url);
+
+          hls.on(Hls.Events.ERROR, (event, data) => {
+            if (!data.fatal) return;
+
+            if (!triedProxy) {
+              // 第一次失败 → 改用代理重试
+              triedProxy = true;
+              const proxiedUrl = `${backendBase}/api/proxy?url=${encodeURIComponent(currentUrl)}`;
+              console.log(`直连失败 (${data.details})，切换代理: ${proxiedUrl}`);
+              hls.destroy();
+              const proxyHls = buildHls(proxiedUrl);
+              proxyHls.attachMedia(dpInstance.current?.video || hls.media);
+              if (dpInstance.current) dpInstance.current.hls = proxyHls;
+            } else {
+              // 代理也失败 → 搜索替代资源
+              console.log('代理也失败，正在搜索替代资源...');
+              hls.destroy();
+              findAlternativeSources();
+            }
+          });
+
+          return hls;
+        };
+
         if (dpInstance.current) {
-          dpInstance.current.switchVideo({ url: proxiedUrl, type: 'hls' });
+          // 切集：直接切换原始 URL，失败会触发上面的错误处理
+          dpInstance.current.switchVideo({ url: currentUrl, type: 'hls' });
           dpInstance.current.play();
         } else {
           dpInstance.current = new DPlayer({
             container: playerRef.current,
             autoplay: true,
             theme: '#ec2d7a',
-            video: { url: proxiedUrl, type: 'hls' },
+            video: { url: currentUrl, type: 'hls' },
             customType: {
               hls: function (video, player) {
                 if (Hls.isSupported()) {
-                  const hls = new Hls({
-                    xhrSetup: function (xhr, url) {
-                      // .ts 分片也走后端代理（注意带上 backendBase）
-                      if (!url.includes('/api/proxy')) {
-                        xhr.open('GET', `${backendBase}/api/proxy?url=${encodeURIComponent(url)}`, true);
-                      }
-                    },
-                  });
-                  hls.loadSource(video.src);
+                  const hls = buildHls(currentUrl);
                   hls.attachMedia(video);
                   player.hls = hls;
-
-                  // 关键：监听 Hls.js 自身的错误事件
-                  // DPlayer 的 on('error') 在 customType 模式下不会自动收到 Hls.js 错误
-                  hls.on(Hls.Events.ERROR, (event, data) => {
-                    if (data.fatal) {
-                      console.log(`视频加载失败 (${data.type})，正在寻找替代资源...`);
-                      // 先尝试 hls 恢复
-                      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                        hls.startLoad(); // 网络错误先重试一次
-                        setTimeout(() => {
-                          // 重试后还是失败，搜索替代资源
-                          if (data.fatal) findAlternativeSources();
-                        }, 3000);
-                      } else {
-                        findAlternativeSources();
-                      }
-                    }
-                  });
                 } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                   // Safari 原生 HLS
-                  video.src = video.src;
+                  video.src = currentUrl;
                   video.addEventListener('error', () => findAlternativeSources());
                 }
               },
@@ -159,8 +164,7 @@ export default function MoviePlayer({ id, src, initialUrl }) {
 
           // DPlayer 原生错误事件（兜底）
           dpInstance.current.on('error', () => {
-            console.log('DPlayer 播放失败，正在寻找替代资源...');
-            findAlternativeSources();
+            if (!triedProxy) findAlternativeSources();
           });
         }
       });
@@ -173,6 +177,8 @@ export default function MoviePlayer({ id, src, initialUrl }) {
       }
     };
   }, [currentUrl]);
+
+
 
 
 

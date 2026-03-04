@@ -154,13 +154,14 @@ function ChannelContent({ paramsPromise }) {
           <>
             <div className="movie-grid">
               {displayResults.map((item, idx) => {
+                const itemId = item.vod_id || item.id;
                 const isReel = item.category.includes('解说') || item.title.includes('解说');
                 const targetHref = isReel
-                  ? `/reels?id=${item.vod_id}&src=${encodeURIComponent(item.source_name || item.source)}`
-                  : `/movie/${encodeURIComponent(`${item.title}-${item.vod_id}`)}?src=${encodeURIComponent(item.source_name || item.source)}`;
+                  ? `/reels?id=${itemId}&src=${encodeURIComponent(item.source_name || item.source)}`
+                  : `/movie/${encodeURIComponent(`${item.title}-${itemId}`)}?src=${encodeURIComponent(item.source_name || item.source)}`;
 
                 return (
-                  <Link key={`${item.vod_id}-${idx}`} href={targetHref} className="movie-card">
+                  <Link key={`${itemId}-${idx}`} href={targetHref} className="movie-card">
                     <div className="movie-poster-wrap">
                       <img className="movie-poster-img" src={item.poster} alt={item.title} onError={(e) => e.target.src = 'https://via.placeholder.com/400x600?text=No+Poster'} />
                       <div className="movie-quality-tag">{item.source_tip || '高清'}</div>
@@ -170,6 +171,7 @@ function ChannelContent({ paramsPromise }) {
                   </Link>
                 );
               })}
+
             </div>
 
             <div className="pagination">
