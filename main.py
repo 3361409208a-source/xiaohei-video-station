@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query, Header, HTTPException, Body, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 import os
@@ -503,6 +503,81 @@ def search_movies(q: str = Query(None), t: str = Query(None), pg: int = Query(1)
     items = cursor.fetchall()
     conn.close()
     return [dict(i) for i in items]
+
+
+# ==================== 视频代理接口 ====================
+# 解决视频 CDN 防盗链 403 问题
+# 服务端不带 Referer 去请求视频，前端通过此接口播放
+
+PROXY_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "*/*",
+    "Accept-Language": "zh-CN,zh;q=0.9",
+    # 故意不设置 Referer，防盗链服务器就看不到你的站点域名
+}
+
+def rewrite_m3u8(content: str, original_url: str, proxy_base: str) -> str:
+    """将 m3u8 内的所有 URI 改写为走代理"""
+    base_url = original_url.rsplit("/", 1)[0] + "/"
+    lines = []
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            lines.append(line)
+            continue
+        # 处理带 URI="..." 的标签（如 EXT-X-KEY, EXT-X-MAP）
+        if stripped.startswith("#"):
+            def replace_uri(m):
+                uri = m.group(1)
+                abs_uri = uri if uri.startswith("http") else base_url + uri
+                return f'URI="{proxy_base}?url={urllib.parse.quote(abs_uri, safe="")}"'
+            new_line = re.sub(r'URI="([^"]+)"', replace_uri, stripped)
+            lines.append(new_line)
+        else:
+            # segment URI
+            abs_uri = stripped if stripped.startswith("http") else base_url + stripped
+            lines.append(f"{proxy_base}?url={urllib.parse.quote(abs_uri, safe='')}")
+    return "\n".join(lines)
+
+@app.get("/api/proxy")
+def video_proxy(request: Request, url: str = Query(...)):
+    """视频代理：服务端不带 Referer 请求 CDN，m3u8 内链接自动改写"""
+    # 构建代理自身的 base URL（用于 m3u8 内链接改写）
+    base = str(request.base_url).rstrip("/")
+    proxy_base = f"{base}/api/proxy"
+
+    try:
+        resp = requests.get(url, headers=PROXY_HEADERS, timeout=15, stream=True)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"上游请求失败: {e}")
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail="上游资源返回错误")
+
+    content_type = resp.headers.get("Content-Type", "")
+    is_m3u8 = "mpegurl" in content_type.lower() or url.split("?")[0].endswith(".m3u8")
+
+    if is_m3u8:
+        # 改写 m3u8 内的所有 URI
+        text = resp.content.decode("utf-8", errors="replace")
+        rewritten = rewrite_m3u8(text, url, proxy_base)
+        return Response(
+            content=rewritten,
+            media_type="application/vnd.apple.mpegurl",
+            headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache"},
+        )
+    else:
+        # ts 分片等：流式透传
+        def generate():
+            for chunk in resp.iter_content(chunk_size=65536):
+                yield chunk
+        return StreamingResponse(
+            generate(),
+            media_type=content_type or "video/MP2T",
+            headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600"},
+        )
+
+# ==================== 启动事件 ====================
 
 @app.on_event("startup")
 async def startup_event():

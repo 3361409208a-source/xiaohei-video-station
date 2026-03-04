@@ -40,8 +40,9 @@ function PlayContent() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && currentUrl) {
-      // 将真实视频 URL 改为走服务端代理，绕过防盗链 403
-      const proxiedUrl = `/api/proxy?url=${encodeURIComponent(currentUrl)}`;
+      // 将真实视频 URL 改为走后端服务器代理，绕过防盗链 403
+      const backendBase = process.env.NEXT_PUBLIC_API_URL || '';
+      const proxiedUrl = `${backendBase}/api/proxy?url=${encodeURIComponent(currentUrl)}`;
       // 动态导入 DPlayer 和 Hls
       Promise.all([
         import('hls.js'),
