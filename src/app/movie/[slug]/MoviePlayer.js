@@ -33,6 +33,14 @@ export default function MoviePlayer({ id, src, initialUrl }) {
       try {
         const res = await fetch(`/api/detail?id=${id}&src=${encodeURIComponent(src)}`);
         const data = await res.json();
+
+        // API 返回 null 表示数据库和实时源都找不到该资源
+        if (!data) {
+          console.warn('Detail not found, searching alternative sources...');
+          findAlternativeSources();
+          return;
+        }
+
         setDetail(data);
 
         if (data.title) {
@@ -50,6 +58,7 @@ export default function MoviePlayer({ id, src, initialUrl }) {
         console.error('Fetch detail failed:', e);
       }
     };
+
 
     fetchDetail();
   }, [id, src, initialUrl, config.site_name]);

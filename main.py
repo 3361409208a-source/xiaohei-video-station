@@ -279,13 +279,12 @@ def get_detail(id: str, src: str):
     conn.close()
     
     sources = get_active_sources()
-    # 优先找匹配的源，找不到找第一个
     engine = next((e for e in sources if e["name"] == urllib.parse.unquote(actual_src or "")), sources[0] if sources else None)
     
-    # 先尝试从实时API获取
+    # 优先从实时 API 获取（保证链接是最新的）
     if engine:
         try:
-            res = requests.get(f"{engine['api']}?ac=detail&ids={actual_vod_id}", timeout=5, headers=HEADERS).json()
+            res = requests.get(f"{engine['api']}?ac=detail&ids={actual_vod_id}", timeout=8, headers=HEADERS).json()
             if res.get("list"):
                 item = res["list"][0]
                 play_url = item.get("vod_play_url", "")
@@ -295,25 +294,43 @@ def get_detail(id: str, src: str):
                         if "$" in p:
                             try:
                                 n, u = p.split("$", 1)
-                                if ".m3u8" in u.lower() or ".mp4" in u.lower(): ep_list.append({"name": n, "url": u})
+                                if ".m3u8" in u.lower() or ".mp4" in u.lower():
+                                    ep_list.append({"name": n, "url": u})
                             except: continue
+                
+                # 实时拉取成功后同步更新数据库，保持链接新鲜
+                if ep_list:
+                    try:
+                        conn2 = get_db()
+                        conn2.execute(
+                            "UPDATE movies SET episodes = ?, update_time = ? WHERE vod_id = ? AND source_name = ?",
+                            (json.dumps(ep_list, ensure_ascii=False), item.get("vod_time", ""), actual_vod_id, engine["name"])
+                        )
+                        conn2.commit()
+                        conn2.close()
+                    except Exception as ue:
+                        print(f"[Detail] DB sync failed: {ue}")
+
                 return {
                     "vod_id": actual_vod_id,
-                    "title": item["vod_name"], 
-                    "poster": item["vod_pic"], 
-                    "category": item.get("type_name", ""), 
-                    "description": item.get("vod_content", ""), 
-                    "episodes": ep_list, 
-                    "year": item.get("vod_year", ""), 
+                    "title": item["vod_name"],
+                    "poster": item["vod_pic"],
+                    "category": item.get("type_name", ""),
+                    "description": item.get("vod_content", ""),
+                    "episodes": ep_list,
+                    "year": item.get("vod_year", ""),
                     "area": item.get("vod_area", ""),
+                    "actor": item.get("vod_actor", ""),
+                    "remark": item.get("vod_remarks", ""),
                     "source_name": engine["name"]
                 }
-        except: pass
+        except Exception as e:
+            print(f"[Detail] 实时拉取失败 vod_id={actual_vod_id} src={actual_src}: {e}")
     
     conn = get_db()
     conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM movies WHERE vod_id = ?", (id,))
+    cursor.execute("SELECT * FROM movies WHERE vod_id = ?", (actual_vod_id,))
     row = cursor.fetchone()
     conn.close()
     
@@ -321,12 +338,15 @@ def get_detail(id: str, src: str):
         item = dict(row)
         return {
             "title": item["title"],
-            "poster": item["poster"],
-            "category": item["category"],
-            "description": item["description"],
-            "episodes": json.loads(item["episodes"]) if item["episodes"] else [],
-            "year": item["year"],
-            "area": ""
+            "poster": item.get("poster", ""),
+            "category": item.get("category", ""),
+            "description": item.get("description", ""),
+            "episodes": json.loads(item["episodes"]) if item.get("episodes") else [],
+            "year": item.get("year", ""),
+            "area": "",
+            "actor": "",
+            "remark": "",
+            "_from_cache": True  # 标记此为缓存数据，链接可能已过期
         }
     return None
 
