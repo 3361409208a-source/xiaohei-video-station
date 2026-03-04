@@ -88,8 +88,6 @@ export default function MoviePlayer({ id, src, initialUrl }) {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && currentUrl) {
-      // 将真实视频 URL 改为走后端服务器代理，绕过防盗链 403
-      // 使用自己的服务器，不占用 Vercel 带宽
       const backendBase = process.env.NEXT_PUBLIC_API_URL || '';
       const proxiedUrl = `${backendBase}/api/proxy?url=${encodeURIComponent(currentUrl)}`;
 
@@ -113,29 +111,46 @@ export default function MoviePlayer({ id, src, initialUrl }) {
               hls: function (video, player) {
                 if (Hls.isSupported()) {
                   const hls = new Hls({
-                    // 让 Hls.js 的二级请求（.ts 分片）也走代理
                     xhrSetup: function (xhr, url) {
-                      // 已经走代理的不再重复包装
+                      // .ts 分片也走后端代理（注意带上 backendBase）
                       if (!url.includes('/api/proxy')) {
-                        const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
-                        xhr.open('GET', proxyUrl, true);
+                        xhr.open('GET', `${backendBase}/api/proxy?url=${encodeURIComponent(url)}`, true);
                       }
                     },
                   });
                   hls.loadSource(video.src);
                   hls.attachMedia(video);
                   player.hls = hls;
+
+                  // 关键：监听 Hls.js 自身的错误事件
+                  // DPlayer 的 on('error') 在 customType 模式下不会自动收到 Hls.js 错误
+                  hls.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                      console.log(`视频加载失败 (${data.type})，正在寻找替代资源...`);
+                      // 先尝试 hls 恢复
+                      if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                        hls.startLoad(); // 网络错误先重试一次
+                        setTimeout(() => {
+                          // 重试后还是失败，搜索替代资源
+                          if (data.fatal) findAlternativeSources();
+                        }, 3000);
+                      } else {
+                        findAlternativeSources();
+                      }
+                    }
+                  });
                 } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                  // Safari 原生支持 HLS
+                  // Safari 原生 HLS
                   video.src = video.src;
+                  video.addEventListener('error', () => findAlternativeSources());
                 }
               },
             },
           });
 
-          // 监听播放失败，自动寻找替代资源
+          // DPlayer 原生错误事件（兜底）
           dpInstance.current.on('error', () => {
-            console.log('播放失败，正在为您寻找替代资源...');
+            console.log('DPlayer 播放失败，正在寻找替代资源...');
             findAlternativeSources();
           });
         }
@@ -149,6 +164,7 @@ export default function MoviePlayer({ id, src, initialUrl }) {
       }
     };
   }, [currentUrl]);
+
 
 
   // 摸鱼模式（画中画）
