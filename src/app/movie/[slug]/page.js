@@ -9,10 +9,11 @@ export default async function MoviePage({ params, searchParams }) {
   const slug = resolvedParams.slug;
   const lastDashIndex = slug.lastIndexOf('-');
   const id = lastDashIndex !== -1 ? slug.substring(lastDashIndex + 1) : slug;
+  const titleFromSlug = lastDashIndex !== -1 ? decodeURIComponent(slug.substring(0, lastDashIndex)) : "";
 
   return (
     <Suspense fallback={
-      <div className="page-wrapper" style={{background:'#0a0a0a', minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center'}}>
+      <div className="page-wrapper" style={{ background: '#0a0a0a', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="loading-con">
           <div className="spinner"></div>
           <div className="loading-text">正在为您准备精彩影片...</div>
@@ -21,10 +22,12 @@ export default async function MoviePage({ params, searchParams }) {
     }>
       <MoviePlayer
         id={id}
+        title={titleFromSlug}
         src={resolvedSearchParams.src}
         initialUrl={resolvedSearchParams.url}
       />
     </Suspense>
+
   );
 }
 

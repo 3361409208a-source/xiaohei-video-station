@@ -263,23 +263,39 @@ def get_public_config():
 def get_detail(id: str, src: str):
     conn = get_db()
     cursor = conn.cursor()
-    # 先检查这是否是本地数据库的主键 id
-    # 有时候前端传递的是 row id 而非 vod_id
-    cursor.execute("SELECT vod_id, source_name FROM movies WHERE id = ?", (id,))
+    
+    # 解析来源名称
+    decoded_src = urllib.parse.unquote(src or "")
+    if decoded_src == 'undefined':
+        decoded_src = ""
+        
+    actual_vod_id = id
+    actual_src = decoded_src
+    
+    # 修复 ID 空间冲突逻辑：
+    # 1. 优先尝试按 (vod_id + source) 精准匹配（针对实时搜索结果点进来的情况）
+    cursor.execute("SELECT vod_id, source_name FROM movies WHERE vod_id = ? AND source_name = ?", (id, decoded_src))
     row = cursor.fetchone()
     
-    actual_vod_id = id
-    actual_src = src
-    
-    if row:
-        actual_vod_id = str(row[0])
-        if not src or src == 'undefined':
+    if not row:
+        # 2. 如果没找到，再看它是否是数据库的主键 id（针对首页推荐位点进来的情况）
+        cursor.execute("SELECT vod_id, source_name FROM movies WHERE id = ?", (id,))
+        row = cursor.fetchone()
+        # 增加校验：如果传了明确的来源但与数据库查出的不符，说明 ID 冲突，应忽略此记录
+        if row and decoded_src and row[1] != decoded_src:
+            row = None
+            
+        if row:
+            actual_vod_id = str(row[0])
             actual_src = row[1]
     
     conn.close()
+
     
     sources = get_active_sources()
-    engine = next((e for e in sources if e["name"] == urllib.parse.unquote(actual_src or "")), sources[0] if sources else None)
+    # 使用已经解析出的 actual_src 匹配源引擎
+    engine = next((e for e in sources if e["name"] == actual_src), sources[0] if sources else None)
+
     
     # 优先从实时 API 获取（保证链接是最新的）
     if engine:

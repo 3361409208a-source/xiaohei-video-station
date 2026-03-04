@@ -1,8 +1,8 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 
-export default function MoviePlayer({ id, src, initialUrl }) {
+export default function MoviePlayer({ id, title, src, initialUrl }) {
   const [detail, setDetail] = useState(null);
   const [currentUrl, setCurrentUrl] = useState(initialUrl);
   const [currentName, setCurrentName] = useState('');
@@ -37,11 +37,17 @@ export default function MoviePlayer({ id, src, initialUrl }) {
         // API 返回 null 表示数据库和实时源都找不到该资源
         if (!data) {
           console.warn('Detail not found, searching alternative sources...');
-          findAlternativeSources();
+          findAlternativeSources(title); // 使用从 URL 提取的标题搜索
           return;
         }
 
         setDetail(data);
+
+        // 如果返回的是缓存数据且链接已经很久（比如2022），大概率无法播放，主动搜索替代源
+        if (data._from_cache) {
+          console.log('Detect cache data, searching for fresh sources...');
+          findAlternativeSources(data.title);
+        }
 
         if (data.title) {
           document.title = `${data.title}在线免费观看 - ${config.site_name}`;
@@ -56,28 +62,36 @@ export default function MoviePlayer({ id, src, initialUrl }) {
         }
       } catch (e) {
         console.error('Fetch detail failed:', e);
+        // 网络请求报错时尝试用标题搜索
+        if (title) findAlternativeSources(title);
       }
     };
 
 
+
     fetchDetail();
-  }, [id, src, initialUrl, config.site_name]);
+  }, [id, src, initialUrl, config.site_name, title, findAlternativeSources, currentUrl]);
+
+
 
   // 当主资源加载失败时，自动寻找替代资源
-  const findAlternativeSources = async () => {
-    if (!detail?.title || isSearchingAlt) return;
+  const findAlternativeSources = useCallback(async (fallbackTitle) => {
+    const searchKeyword = detail?.title || fallbackTitle;
+    if (!searchKeyword || isSearchingAlt) return;
+
     setIsSearchingAlt(true);
     try {
-      // 搜索同名电影，排除当前失效的源
-      const res = await fetch(`/api/search?q=${encodeURIComponent(detail.title)}`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(searchKeyword)}`);
       const data = await res.json();
-      const others = data.filter(item => item.source_name !== src);
+      const others = data.filter(item => (item.source_name || item.source) !== src);
       setAltSources(others);
     } catch (err) {
       console.error("Failed to find alt sources", err);
     }
     setIsSearchingAlt(false);
-  };
+  }, [detail?.title, src, isSearchingAlt]);
+
+
 
   const handleSwitchSource = async (alt) => {
     try {
@@ -176,7 +190,9 @@ export default function MoviePlayer({ id, src, initialUrl }) {
         dpInstance.current = null;
       }
     };
-  }, [currentUrl]);
+  }, [currentUrl, findAlternativeSources]);
+
+
 
 
 
@@ -237,6 +253,13 @@ export default function MoviePlayer({ id, src, initialUrl }) {
           <span>防骗提醒：正在播放的视频中若出现任何广告水印，请务必提高警惕，切勿转账或参与，守护好您的财产安全！</span>
         </div>
       </div>
+
+      {detail?._from_cache && (
+        <div style={{ background: 'rgba(236, 45, 122, 0.1)', padding: '10px', color: '#ec2d7a', fontSize: '0.85rem', textAlign: 'center', borderBottom: '1px solid rgba(236, 45, 122, 0.2)' }}>
+          ⚠️ 检测到该线路记录较旧可能无法播放，系统正在为您寻找最新播放源...
+        </div>
+      )}
+
 
       <div className="play-layout" style={{ flex: 1 }}>
         <div className="player-main">
