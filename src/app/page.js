@@ -57,7 +57,7 @@ function HomeContent() {
     try {
       const response = await fetch(`/api/search?q=${encodeURIComponent(targetQ)}&_ts=${Date.now()}`);
       const data = await response.json();
-      setResults(data);
+      setResults(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Search failed:', error);
     }
@@ -74,7 +74,7 @@ function HomeContent() {
       fetch('/api/latest')
         .then(res => res.json())
         .then(data => {
-          setResults(data.slice(0, 5));
+          setResults(Array.isArray(data) ? data.slice(0, 5) : []);
           setLoading(false);
         })
         .catch(() => setLoading(false));
@@ -82,7 +82,7 @@ function HomeContent() {
   }, [searchParams]);
 
   // isMobile 为 null 时（SSR/挂载前），默认展示全部，避免 hydration 不一致
-  const displayResults = isMobile === true ? results.slice(0, 15) : results;
+  const displayResults = (isMobile === true && Array.isArray(results)) ? results.slice(0, 15) : (Array.isArray(results) ? results : []);
 
   return (
     <div className="page-wrapper">

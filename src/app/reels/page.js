@@ -284,16 +284,17 @@ function PlayerContent() {
 
                 const res = await fetch(`/api/reels?pg=${rp}`);
                 const data = await res.json();
-                console.log(`📊 获取到 ${data.length} 个解说视频`);
-
-                if (data.length === 0) {
-                    console.error('❌ 没有获取到视频数据');
+                
+                if (!Array.isArray(data) || data.length === 0) {
+                    console.error('❌ 没有获取到有效的视频数据');
                     setLoading(false);
                     return;
                 }
 
+                console.log(`📊 获取到 ${data.length} 个解说视频`);
+
                 // 打乱顺序，增加随机性
-                const shuffled = data.sort(() => Math.random() - 0.5);
+                const shuffled = [...data].sort(() => Math.random() - 0.5);
                 const videoList = shuffled.slice(0, 20);
                 setAllVideos(videoList);
 
