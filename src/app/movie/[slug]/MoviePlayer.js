@@ -26,6 +26,39 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
       .catch(err => console.error("Config load failed", err));
   }, []);
 
+  // 当主资源加载失败时，自动寻找替代资源
+  const findAlternativeSources = useCallback(async (fallbackTitle) => {
+    const searchKeyword = detail?.title || fallbackTitle;
+    if (!searchKeyword || isSearchingAlt) return;
+
+    setIsSearchingAlt(true);
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(searchKeyword)}`);
+      const data = await res.json();
+      const others = data.filter(item => (item.source_name || item.source) !== src);
+      setAltSources(others);
+    } catch (err) {
+      console.error("Failed to find alt sources", err);
+    }
+    setIsSearchingAlt(false);
+  }, [detail?.title, src, isSearchingAlt]);
+
+  const handleSwitchSource = async (alt) => {
+    try {
+      const res = await fetch(`/api/detail?id=${alt.vod_id || alt.id}&src=${encodeURIComponent(alt.source_name)}`);
+      const data = await res.json();
+      // 尝试匹配相同集名，或者播第一集
+      const targetEp = data.episodes.find(e => e.name === currentName) || data.episodes[0];
+      if (targetEp) {
+        setCurrentUrl(targetEp.url);
+        // 更新当前页面的一些信息
+        setDetail(prev => ({ ...prev, episodes: data.episodes }));
+      }
+    } catch (err) {
+      console.error("Switch source failed", err);
+    }
+  };
+
   useEffect(() => {
     if (!id || !src) return;
 
@@ -67,47 +100,8 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
       }
     };
 
-
-
     fetchDetail();
   }, [id, src, initialUrl, config.site_name, title, findAlternativeSources, currentUrl]);
-
-
-
-  // 当主资源加载失败时，自动寻找替代资源
-  const findAlternativeSources = useCallback(async (fallbackTitle) => {
-    const searchKeyword = detail?.title || fallbackTitle;
-    if (!searchKeyword || isSearchingAlt) return;
-
-    setIsSearchingAlt(true);
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(searchKeyword)}`);
-      const data = await res.json();
-      const others = data.filter(item => (item.source_name || item.source) !== src);
-      setAltSources(others);
-    } catch (err) {
-      console.error("Failed to find alt sources", err);
-    }
-    setIsSearchingAlt(false);
-  }, [detail?.title, src, isSearchingAlt]);
-
-
-
-  const handleSwitchSource = async (alt) => {
-    try {
-      const res = await fetch(`/api/detail?id=${alt.vod_id || alt.id}&src=${encodeURIComponent(alt.source_name)}`);
-      const data = await res.json();
-      // 尝试匹配相同集名，或者播第一集
-      const targetEp = data.episodes.find(e => e.name === currentName) || data.episodes[0];
-      if (targetEp) {
-        setCurrentUrl(targetEp.url);
-        // 更新当前页面的一些信息
-        setDetail(prev => ({ ...prev, episodes: data.episodes }));
-      }
-    } catch (err) {
-      console.error("Switch source failed", err);
-    }
-  };
 
   useEffect(() => {
     if (typeof window !== 'undefined' && currentUrl) {
