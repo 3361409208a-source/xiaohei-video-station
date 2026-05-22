@@ -60,7 +60,12 @@ export async function generateMetadata({ params, searchParams }) {
       });
 
       if (response.ok) {
-        data = await response.json();
+        const json = await response.json();
+        if (json && json.status !== 'error' && !json.error) {
+          data = json;
+        } else {
+          console.warn('Metadata backend response contains error structure');
+        }
       }
     }
   } catch (error) {

@@ -14,7 +14,13 @@ export async function GET(request) {
       const response = await fetch(backendUrl.toString(), {
         signal: AbortSignal.timeout(2000)
       });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
+      if (data && (data.status === 'error' || data.error)) {
+        throw new Error(`API error: ${data.message || data.error}`);
+      }
       return NextResponse.json(data);
     } catch (error) {
       console.warn('Fetch detail from backend failed, using backup service:', error.message);

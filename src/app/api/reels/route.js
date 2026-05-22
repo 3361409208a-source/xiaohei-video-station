@@ -15,7 +15,13 @@ export async function GET(request) {
       cache: 'no-store',
       signal: AbortSignal.timeout(2500)
     });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     const data = await response.json();
+    if (data && (data.status === 'error' || data.error)) {
+      throw new Error(`API error: ${data.message || data.error}`);
+    }
     return NextResponse.json(data);
   } catch (error) {
     console.warn('Fetch reels from backend failed, falling back to backup reels:', error.message);

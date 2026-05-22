@@ -9,7 +9,13 @@ export async function GET() {
       cache: 'no-store',
       signal: AbortSignal.timeout(2000)
     });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     const data = await response.json();
+    if (data && (data.status === 'error' || data.error)) {
+      throw new Error(`API error: ${data.message || data.error}`);
+    }
     return NextResponse.json(data);
   } catch (error) {
     console.warn('Fetch latest from backend failed, falling back to backup latest:', error.message);
