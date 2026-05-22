@@ -8,10 +8,27 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
   const [currentName, setCurrentName] = useState('');
   const [altSources, setAltSources] = useState([]);
   const [isSearchingAlt, setIsSearchingAlt] = useState(false);
+  const [showNotice, setShowNotice] = useState(true);
+  const [attemptedSources, setAttemptedSources] = useState([src]);
   const playerRef = useRef(null);
   const dpInstance = useRef(null);
   const [isDescCollapsed, setIsDescCollapsed] = useState(true);
   const [config, setConfig] = useState({ site_name: '小黑搜影', footer: '' });
+
+  // 当换源或换集时，重置已尝试的源
+  useEffect(() => {
+    setAttemptedSources([src]);
+  }, [src, currentName]);
+
+  // 从 localStorage 初始化公告显示状态
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hideNotice = localStorage.getItem('hide_notice_bar') === 'true';
+      if (hideNotice) {
+        setShowNotice(false);
+      }
+    }
+  }, []);
 
   // 过滤 HTML 标签的工具函数
   const stripHtml = (html) => {
@@ -26,26 +43,10 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
       .catch(err => console.error("Config load failed", err));
   }, []);
 
-  // 当主资源加载失败时，自动寻找替代资源
-  const findAlternativeSources = useCallback(async (fallbackTitle) => {
-    const searchKeyword = detail?.title || fallbackTitle;
-    if (!searchKeyword || isSearchingAlt) return;
-
-    setIsSearchingAlt(true);
+  const handleSwitchSource = useCallback(async (alt) => {
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(searchKeyword)}`);
-      const data = await res.json();
-      const others = data.filter(item => (item.source_name || item.source) !== src);
-      setAltSources(others);
-    } catch (err) {
-      console.error("Failed to find alt sources", err);
-    }
-    setIsSearchingAlt(false);
-  }, [detail?.title, src, isSearchingAlt]);
-
-  const handleSwitchSource = async (alt) => {
-    try {
-      const res = await fetch(`/api/detail?id=${alt.vod_id || alt.id}&src=${encodeURIComponent(alt.source_name)}`);
+      const sName = alt.source_name || alt.source;
+      const res = await fetch(`/api/detail?id=${alt.vod_id || alt.id}&src=${encodeURIComponent(sName)}`);
       const data = await res.json();
       // 尝试匹配相同集名，或者播第一集
       const targetEp = data.episodes.find(e => e.name === currentName) || data.episodes[0];
@@ -57,7 +58,43 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
     } catch (err) {
       console.error("Switch source failed", err);
     }
-  };
+  }, [currentName]);
+
+  // 当主资源加载失败时，自动寻找替代资源
+  const findAlternativeSources = useCallback(async (fallbackTitle, autoSwitch = true) => {
+    const searchKeyword = detail?.title || fallbackTitle;
+    if (!searchKeyword || isSearchingAlt) return;
+
+    setIsSearchingAlt(true);
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(searchKeyword)}`);
+      const data = await res.json();
+      const others = data.filter(item => {
+        const sName = item.source_name || item.source;
+        return sName !== src;
+      });
+      setAltSources(others);
+
+      if (autoSwitch && others.length > 0) {
+        const nextSource = others.find(item => {
+          const sName = item.source_name || item.source;
+          return !attemptedSources.includes(sName);
+        });
+
+        if (nextSource) {
+          const nextSourceName = nextSource.source_name || nextSource.source;
+          console.log(`自动切换至替代源: ${nextSourceName}`);
+          setAttemptedSources(prev => [...prev, nextSourceName]);
+          await handleSwitchSource(nextSource);
+        } else {
+          console.log("所有可用替代源均已尝试过播放，停止自动切换。");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to find alt sources", err);
+    }
+    setIsSearchingAlt(false);
+  }, [detail?.title, src, isSearchingAlt, attemptedSources, handleSwitchSource]);
 
   useEffect(() => {
     if (!id || !src) return;
@@ -70,16 +107,16 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
         // API 返回 null 表示数据库和实时源都找不到该资源
         if (!data) {
           console.warn('Detail not found, searching alternative sources...');
-          findAlternativeSources(title); // 使用从 URL 提取的标题搜索
+          findAlternativeSources(title, true); // 使用从 URL 提取的标题搜索
           return;
         }
 
         setDetail(data);
 
-        // 如果返回的是缓存数据且链接已经很久（比如2022），大概率无法播放，主动搜索替代源
+        // 如果返回的是缓存数据且链接已经很久（比如2022），大概率无法播放，主动搜索替代源，但不自动切换
         if (data._from_cache) {
           console.log('Detect cache data, searching for fresh sources...');
-          findAlternativeSources(data.title);
+          findAlternativeSources(data.title, false);
         }
 
         if (data.title) {
@@ -96,7 +133,7 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
       } catch (e) {
         console.error('Fetch detail failed:', e);
         // 网络请求报错时尝试用标题搜索
-        if (title) findAlternativeSources(title);
+        if (title) findAlternativeSources(title, true);
       }
     };
 
@@ -138,7 +175,7 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
               // 代理也失败 → 搜索替代资源
               console.log('代理也失败，正在搜索替代资源...');
               hls.destroy();
-              findAlternativeSources();
+              findAlternativeSources(detail?.title || title, true);
             }
           });
 
@@ -164,7 +201,7 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
                 } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                   // Safari 原生 HLS
                   video.src = currentUrl;
-                  video.addEventListener('error', () => findAlternativeSources());
+                  video.addEventListener('error', () => findAlternativeSources(detail?.title || title, true));
                 }
               },
             },
@@ -172,7 +209,7 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
 
           // DPlayer 原生错误事件（兜底）
           dpInstance.current.on('error', () => {
-            if (!triedProxy) findAlternativeSources();
+            if (!triedProxy) findAlternativeSources(detail?.title || title, true);
           });
         }
       });
@@ -241,12 +278,26 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
         </div>
       </header>
 
-      <div className="broadcast-bar">
-        <div className="broadcast-content">
-          <span className="broadcast-icon">📢</span>
-          <span>防骗提醒：正在播放的视频中若出现任何广告水印，请务必提高警惕，切勿转账或参与，守护好您的财产安全！</span>
+      {showNotice && (
+        <div className="broadcast-bar">
+          <div className="broadcast-content">
+            <span className="broadcast-icon">📢</span>
+            <span>防骗提醒：正在播放的视频中若出现任何广告水印，请务必提高警惕，切勿转账或参与，守护好您的财产安全！</span>
+          </div>
+          <button 
+            className="broadcast-close-btn" 
+            onClick={() => {
+              setShowNotice(false);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('hide_notice_bar', 'true');
+              }
+            }}
+            title="关闭公告"
+          >
+            &times;
+          </button>
         </div>
-      </div>
+      )}
 
       {detail?._from_cache && (
         <div style={{ background: 'rgba(236, 45, 122, 0.1)', padding: '10px', color: '#ec2d7a', fontSize: '0.85rem', textAlign: 'center', borderBottom: '1px solid rgba(236, 45, 122, 0.2)' }}>

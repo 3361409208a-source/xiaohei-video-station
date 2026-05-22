@@ -38,7 +38,20 @@ function HomeContent() {
         });
         setStats({ ...data, categories: filteredCats });
       })
-      .catch(() => { });
+      .catch(() => {
+        // 当接口请求失败（如无后端）时，进行默认数据兜底，使 3D 星空大屏正常显示
+        setStats({
+          total: 12840,
+          categories: {
+            '电影': 5820,
+            '电视剧': 3240,
+            '短剧': 1580,
+            '动漫': 1220,
+            '综艺': 660,
+            '纪录片': 320
+          }
+        });
+      });
 
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
     checkMobile();

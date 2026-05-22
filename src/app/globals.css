@@ -53,7 +53,7 @@ html {
 }
 
 body {
-  background-color: transparent;
+  background-color: var(--bg-main);
   color: var(--text-main);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -65,6 +65,8 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  background-color: var(--bg-main);
+  color: var(--text-main);
 }
 
 .container {
@@ -583,6 +585,37 @@ a {
   height: 40px;
   display: flex;
   align-items: center;
+}
+
+/* 关闭按钮样式 */
+.broadcast-close-btn {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffb8d1;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  z-index: 10;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.broadcast-close-btn:hover {
+  background: rgba(236, 45, 122, 0.4);
+  color: #fff;
+  border-color: rgba(236, 45, 122, 0.5);
+  transform: translateY(-50%) scale(1.1);
 }
 
 .broadcast-content {

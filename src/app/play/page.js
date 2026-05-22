@@ -12,8 +12,18 @@ function PlayContent() {
   const [detail, setDetail] = useState(null);
   const [currentUrl, setCurrentUrl] = useState(initialUrl);
   const [currentName, setCurrentName] = useState('');
+  const [showNotice, setShowNotice] = useState(true);
   const playerRef = useRef(null);
   const dpInstance = useRef(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hideNotice = localStorage.getItem('hide_notice_bar') === 'true';
+      if (hideNotice) {
+        setShowNotice(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (!id || !src) return;
@@ -101,12 +111,26 @@ function PlayContent() {
         </div>
       </header>
 
-      <div className="broadcast-bar">
-        <div className="broadcast-content">
-          <span className="broadcast-icon">📢</span>
-          <span>防骗提醒：正在播放的视频中若出现任何广告水印，请务必提高警惕，切勿转账或参与，守护好您的财产安全！</span>
+      {showNotice && (
+        <div className="broadcast-bar">
+          <div className="broadcast-content">
+            <span className="broadcast-icon">📢</span>
+            <span>防骗提醒：正在播放的视频中若出现任何广告水印，请务必提高警惕，切勿转账或参与，守护好您的财产安全！</span>
+          </div>
+          <button 
+            className="broadcast-close-btn" 
+            onClick={() => {
+              setShowNotice(false);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('hide_notice_bar', 'true');
+              }
+            }}
+            title="关闭公告"
+          >
+            &times;
+          </button>
         </div>
-      </div>
+      )}
 
       <div className="play-layout">
         <div className="player-main" ref={playerRef}></div>
