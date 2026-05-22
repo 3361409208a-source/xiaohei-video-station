@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getReels } from '@/utils/backupService';
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -10,10 +11,19 @@ export async function GET(request) {
   backendUrl.searchParams.append('pg', pg);
 
   try {
-    const response = await fetch(backendUrl.toString(), { cache: 'no-store' });
+    const response = await fetch(backendUrl.toString(), { 
+      cache: 'no-store',
+      signal: AbortSignal.timeout(2500)
+    });
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    return NextResponse.json({ error: 'Fetch reels failed' }, { status: 500 });
+    console.warn('Fetch reels from backend failed, falling back to backup reels:', error.message);
+    try {
+      const data = await getReels(pg);
+      return NextResponse.json(data);
+    } catch (backupError) {
+      return NextResponse.json({ error: 'Fallback reels failed' }, { status: 500 });
+    }
   }
 }

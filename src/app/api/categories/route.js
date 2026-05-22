@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getCategories } from '@/utils/backupService';
 
 export async function GET(request) {
     const { searchParams } = new URL(request.url);
@@ -10,16 +11,23 @@ export async function GET(request) {
         return NextResponse.json({ error: 'Missing type parameter' }, { status: 400 });
     }
 
-    // 构造转发给后端的完整 URL
     const backendUrl = new URL(`${API_URL}/api/categories`);
     backendUrl.searchParams.append('t', t);
 
     try {
-        const response = await fetch(backendUrl.toString(), { cache: 'no-store' });
+        const response = await fetch(backendUrl.toString(), { 
+            cache: 'no-store',
+            signal: AbortSignal.timeout(1500)
+        });
         const data = await response.json();
         return NextResponse.json(data);
     } catch (error) {
-        console.error('Proxy categories failed:', error);
-        return NextResponse.json({ error: 'Proxy categories failed' }, { status: 500 });
+        console.warn('Proxy categories failed, falling back to backup categories:', error.message);
+        try {
+            const data = getCategories(t);
+            return NextResponse.json(data);
+        } catch (backupError) {
+            return NextResponse.json({ error: 'Fallback categories failed' }, { status: 500 });
+        }
     }
 }
