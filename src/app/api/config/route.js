@@ -15,7 +15,7 @@ export async function GET() {
       site_name: '🐾 小黑搜影', 
       notice: '📢 防骗提醒：正在播放的视频中若出现任何广告水印，请务必提高警惕，切勿转账或参与，守护好您的财产安全！',
       footer: '© 2026 🐾 小黑搜影',
-      theme: ''
+      theme: 'winxp'
     });
   }
 }

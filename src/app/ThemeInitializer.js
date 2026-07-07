@@ -8,11 +8,8 @@ export default function ThemeInitializer() {
       try {
         const res = await fetch('/api/config');
         const config = await res.json();
-        if (config.theme) {
-          document.documentElement.setAttribute('data-theme', config.theme);
-        } else {
-          document.documentElement.removeAttribute('data-theme');
-        }
+        const theme = config.theme || 'winxp';
+        document.documentElement.setAttribute('data-theme', theme);
       } catch (e) {
         console.error("Theme init failed", e);
       }
@@ -23,8 +20,7 @@ export default function ThemeInitializer() {
     // 监听 storage 变化（针对后台修改后前台即时响应）
     const handleStorage = (e) => {
       if (e.key === 'site_theme') {
-        if (e.newValue) document.documentElement.setAttribute('data-theme', e.newValue);
-        else document.documentElement.removeAttribute('data-theme');
+        document.documentElement.setAttribute('data-theme', e.newValue || 'winxp');
       }
     };
     window.addEventListener('storage', handleStorage);
