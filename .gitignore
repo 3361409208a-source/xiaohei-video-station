@@ -41,3 +41,8 @@ yarn-error.log*
 next-env.d.ts
 .claude/
 nul
+
+# 运行时数据文件（后端生成，不应纳入版本控制）
+/data.db
+/collector.log
+/search_trends.json
