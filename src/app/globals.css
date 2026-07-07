@@ -42,6 +42,16 @@
   --text-dim: #4b5563;
 }
 
+/* 主题 6：怀旧之窗 (Windows XP Retro) */
+[data-theme='winxp'] {
+  --primary: #316ac5;
+  --bg-main: #008080;
+  --bg-card: #ece9d8;
+  --bg-input: #ffffff;
+  --text-main: #1e1e1e;
+  --text-dim: #666666;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -705,5 +715,327 @@ a {
   .episode-sidebar { width: 100%; border-left: none; border-top: 1px solid #222; }
   .ep-grid.scroll-mode {
     max-height: 280px; /* 移动端 20 集左右的高度 */
+  }
+}
+
+/* ============================================================
+   主题 6：怀旧之窗 (Windows XP Retro) — 专属复古样式覆盖
+   ============================================================ */
+
+/* 桌面背景 — 经典 XP 青绿桌面渐变 */
+[data-theme='winxp'] body {
+  font-family: Tahoma, "Segoe UI", Geneva, Verdana, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-theme='winxp'] .page-wrapper {
+  background: linear-gradient(180deg, #1f8a8a 0%, #008080 40%, #006666 100%);
+}
+
+/* Header — XP Luna 蓝色标题栏 */
+[data-theme='winxp'] .site-header {
+  background: linear-gradient(180deg, #0a246a 0%, #0058e6 3%, #3f8cf3 45%, #2f6cd4 55%, #86b3e0 100%);
+  border-bottom: 2px solid #0a246a;
+  backdrop-filter: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='winxp'] .logo-text {
+  color: #ffffff;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme='winxp'] .logo-text span {
+  color: #ffe066;
+}
+
+[data-theme='winxp'] .nav-link {
+  color: #e8f0ff;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='winxp'] .nav-link.active {
+  color: #ffffff;
+}
+
+[data-theme='winxp'] .nav-link.active::after {
+  background: #ffe066;
+}
+
+/* 特殊按钮 — XP 开始按钮绿色渐变 */
+[data-theme='winxp'] .nav-link.special-link {
+  background: linear-gradient(180deg, #7cce7c 0%, #5cb85c 48%, #3d8b3d 52%, #4cae4c 100%);
+  color: #ffffff !important;
+  border: 1px solid #2d6b2d;
+  border-radius: 6px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 2px 4px rgba(0, 0, 0, 0.2);
+  animation: none;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='winxp'] .nav-link.special-link:hover {
+  background: linear-gradient(180deg, #8dde8d 0%, #6ec06e 48%, #449d44 52%, #5cb85c 100%);
+  transform: translateY(-1px);
+}
+
+/* Hero 区域 */
+[data-theme='winxp'] .hero-section {
+  background: none;
+}
+
+[data-theme='winxp'] .hero-title {
+  color: #ffffff;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='winxp'] .hero-title span {
+  color: #ffe066;
+}
+
+/* 搜索栏 — XP 输入框风格（内凹边框） */
+[data-theme='winxp'] .search-bar-wrapper {
+  background: #ece9d8;
+  border: 2px solid #7f9db9;
+  border-radius: 3px;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme='winxp'] .search-bar-wrapper:focus-within {
+  border-color: #316ac5;
+  box-shadow: none;
+}
+
+[data-theme='winxp'] .search-input {
+  color: #1e1e1e;
+}
+
+[data-theme='winxp'] .search-input::placeholder {
+  color: #999999;
+}
+
+/* 搜索按钮 — XP 蓝色立体按钮 */
+[data-theme='winxp'] .search-btn {
+  background: linear-gradient(180deg, #5da9ff 0%, #2f7df0 48%, #1a5cc4 52%, #3f8cf3 100%);
+  color: #ffffff;
+  border: 1px solid #1a4f9e;
+  border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 1px 2px rgba(0, 0, 0, 0.15);
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='winxp'] .search-btn:hover {
+  background: linear-gradient(180deg, #6db9ff 0%, #3f8df0 48%, #2a6cd4 52%, #4f9cff 100%);
+}
+
+/* 热门搜索标签 */
+[data-theme='winxp'] .hot-label {
+  color: #e8f0ff;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='winxp'] .hot-tag {
+  background: rgba(236, 233, 216, 0.9);
+  color: #316ac5;
+  border: 1px solid #aca899;
+  border-radius: 3px;
+}
+
+[data-theme='winxp'] .hot-tag:hover {
+  background: #316ac5;
+  color: #ffffff;
+  border-color: #1a4f9e;
+}
+
+/* 分区标题 */
+[data-theme='winxp'] .section-title {
+  color: #ffffff;
+  text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='winxp'] .section-title::before {
+  background: linear-gradient(180deg, #3f8cf3, #0058e6);
+  border-radius: 2px;
+}
+
+[data-theme='winxp'] .view-all {
+  color: #ffe066;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='winxp'] .view-all:hover {
+  color: #ffffff;
+}
+
+/* 筛选栏 */
+[data-theme='winxp'] .filter-bar {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+[data-theme='winxp'] .filter-item {
+  background: rgba(236, 233, 216, 0.92);
+  color: #1e1e1e;
+  border: 1px solid #aca899;
+  border-radius: 3px;
+}
+
+[data-theme='winxp'] .filter-item:hover {
+  background: rgba(212, 208, 200, 0.95);
+  color: #1e1e1e;
+  border-color: #888888;
+}
+
+[data-theme='winxp'] .filter-item.active {
+  background: linear-gradient(180deg, #5da9ff 0%, #2f7df0 48%, #1a5cc4 52%, #3f8cf3 100%);
+  color: #ffffff;
+  border-color: #1a4f9e;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
+}
+
+/* 电影卡片 — XP 窗口面板风格（3D 凸起边框） */
+[data-theme='winxp'] .movie-poster-wrap {
+  background: #d4d0c8;
+  border: 2px solid #d4d0c8;
+  border-top-color: #ffffff;
+  border-left-color: #ffffff;
+  border-right-color: #808080;
+  border-bottom-color: #808080;
+  border-radius: 5px;
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme='winxp'] .movie-card:hover {
+  transform: translateY(-4px);
+}
+
+[data-theme='winxp'] .movie-card:hover .movie-poster-wrap {
+  border-color: #316ac5;
+  box-shadow: 0 0 0 1px #316ac5, 3px 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* 画质标签 — XP 绿色徽章 */
+[data-theme='winxp'] .movie-quality-tag {
+  background: linear-gradient(180deg, #7cce7c 0%, #5cb85c 50%, #3d8b3d 100%);
+  color: #ffffff;
+  border: 1px solid #2d6b2d;
+  border-radius: 3px;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='winxp'] .movie-info-name {
+  color: #ffffff;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme='winxp'] .movie-info-meta {
+  color: #e8f0ff;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* 分页按钮 — XP 立体按钮 */
+[data-theme='winxp'] .page-btn {
+  background: linear-gradient(180deg, #fafaf6 0%, #ece9d8 48%, #d4d0c8 52%, #e8e4dc 100%);
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #808080;
+  border-bottom: 1px solid #808080;
+  color: #1e1e1e;
+  border-radius: 3px;
+  text-shadow: none;
+}
+
+[data-theme='winxp'] .page-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #5da9ff 0%, #2f7df0 48%, #1a5cc4 52%, #3f8cf3 100%);
+  border: 1px solid #1a4f9e;
+  color: #ffffff;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
+}
+
+/* 页脚 — XP 任务栏蓝色渐变 */
+[data-theme='winxp'] .site-footer {
+  background: linear-gradient(180deg, #2f6cd4 0%, #0058e6 50%, #0040b0 100%);
+  border-top: 2px solid #0a246a;
+  color: #e8f0ff;
+}
+
+/* 加载动画 */
+[data-theme='winxp'] .spinner {
+  border-color: rgba(255, 255, 255, 0.2);
+  border-top-color: #ffe066;
+}
+
+[data-theme='winxp'] .loading-text {
+  color: #e8f0ff;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* 播放页侧边栏 */
+[data-theme='winxp'] .player-main {
+  background: #000;
+}
+
+[data-theme='winxp'] .episode-sidebar {
+  background: #ece9d8;
+  border-left: 2px solid #0a246a;
+}
+
+[data-theme='winxp'] .sidebar-title {
+  color: #0058e6;
+}
+
+[data-theme='winxp'] .ep-card {
+  background: linear-gradient(180deg, #fafaf6 0%, #ece9d8 50%, #d4d0c8 100%);
+  color: #1e1e1e;
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #808080;
+  border-bottom: 1px solid #808080;
+  border-radius: 3px;
+}
+
+[data-theme='winxp'] .ep-card:hover {
+  border-color: #316ac5;
+  color: #1e1e1e;
+}
+
+[data-theme='winxp'] .ep-card.active {
+  background: linear-gradient(180deg, #5da9ff 0%, #2f7df0 50%, #1a5cc4 100%);
+  color: #ffffff;
+  border: 1px solid #1a4f9e;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
+}
+
+/* 公告栏 */
+[data-theme='winxp'] .broadcast-bar {
+  background: linear-gradient(180deg, #ffe066 0%, #ffd700 50%, #e6b800 100%);
+  border-bottom: 1px solid #b39800;
+}
+
+[data-theme='winxp'] .broadcast-content {
+  color: #1e1e1e;
+  font-weight: 600;
+}
+
+[data-theme='winxp'] .broadcast-close-btn {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid #b39800;
+  color: #1e1e1e;
+}
+
+[data-theme='winxp'] .broadcast-close-btn:hover {
+  background: rgba(197, 30, 30, 0.8);
+  color: #ffffff;
+  border-color: #8b0000;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  [data-theme='winxp'] .search-bar-wrapper {
+    background: rgba(236, 233, 216, 0.92);
+  }
+
+  [data-theme='winxp'] .search-btn {
+    background: linear-gradient(180deg, #5da9ff 0%, #2f7df0 48%, #1a5cc4 52%, #3f8cf3 100%);
+    color: #ffffff;
   }
 }

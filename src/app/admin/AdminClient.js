@@ -235,6 +235,7 @@ export default function AdminClient({ initialStats }) {
                   <option value="blue">深海之影 (Ocean Blue)</option>
                   <option value="gold">黑金尊享 (Midnight Gold)</option>
                   <option value="white">初雪之境 (Pure White)</option>
+                  <option value="winxp">怀旧之窗 (Windows XP)</option>
                 </select>
               </div>
               <div>
