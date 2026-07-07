@@ -1039,3 +1039,63 @@ a {
     color: #ffffff;
   }
 }
+
+/* ============================================================
+   播放页通用样式（原本为内联，改为 class 以支持主题覆盖）
+   ============================================================ */
+
+/* 缓存源警告条 */
+.cache-warning-bar {
+  background: rgba(225, 29, 72, 0.1);
+  padding: 10px;
+  color: var(--primary);
+  font-size: 0.85rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(225, 29, 72, 0.2);
+}
+
+/* 替代路线提示框 */
+.alt-sources-box {
+  background: rgba(225, 29, 72, 0.08);
+  border: 1px solid var(--primary);
+}
+
+/* WinXP 主题下：缓存警告条 */
+[data-theme='winxp'] .cache-warning-bar {
+  background: linear-gradient(180deg, #fff4ce 0%, #ffe066 100%);
+  color: #8b6914;
+  border-bottom: 1px solid #d4a800;
+  font-weight: 600;
+}
+
+/* WinXP 主题下：替代路线提示框 */
+[data-theme='winxp'] .alt-sources-box {
+  background: rgba(49, 106, 197, 0.1);
+  border: 1px solid #316ac5;
+  border-radius: 3px;
+}
+
+/* WinXP 主题下：影片信息卡片 */
+[data-theme='winxp'] .movie-info-card {
+  background: #ece9d8 !important;
+  color: #1e1e1e !important;
+  border: 2px solid;
+  border-top-color: #ffffff;
+  border-left-color: #ffffff;
+  border-right-color: #808080;
+  border-bottom-color: #808080;
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme='winxp'] .movie-info-card h1 {
+  color: #0058e6 !important;
+}
+
+[data-theme='winxp'] .movie-info-card p,
+[data-theme='winxp'] .movie-info-card span {
+  color: #1e1e1e;
+}
+
+[data-theme='winxp'] .movie-info-card strong {
+  color: #1e1e1e;
+}

@@ -244,8 +244,8 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
   };
 
   return (
-    <div className="page-wrapper" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', overflowX: 'hidden', background: '#000' }}>
-      <header className="site-header" style={{ background: '#111' }}>
+    <div className="page-wrapper" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', overflowX: 'hidden' }}>
+      <header className="site-header">
         <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <Link href="/" className="logo-area">
             <img src="/logo.png" alt="logo" className="logo-img" />
@@ -254,7 +254,7 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
 
           <div style={{
             fontSize: '0.9rem',
-            color: '#888',
+            color: 'var(--text-dim)',
             flex: 1,
             textAlign: 'center',
             padding: '0 15px',
@@ -274,7 +274,7 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
             )}
           </div>
 
-          <Link href="/" style={{ color: '#ccc', fontSize: '0.8rem', whiteSpace: 'nowrap', flexShrink: 0 }}>返回搜索</Link>
+          <Link href="/" style={{ color: 'var(--text-dim)', fontSize: '0.8rem', whiteSpace: 'nowrap', flexShrink: 0 }}>返回搜索</Link>
         </div>
       </header>
 
@@ -300,7 +300,7 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
       )}
 
       {detail?._from_cache && (
-        <div style={{ background: 'rgba(236, 45, 122, 0.1)', padding: '10px', color: '#ec2d7a', fontSize: '0.85rem', textAlign: 'center', borderBottom: '1px solid rgba(236, 45, 122, 0.2)' }}>
+        <div className="cache-warning-bar">
           ⚠️ 检测到该线路记录较旧可能无法播放，系统正在为您寻找最新播放源...
         </div>
       )}
@@ -310,16 +310,16 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
         <div className="player-main">
           <div ref={playerRef} style={{ width: '100%', aspectRatio: '16/9' }}></div>
           {detail && (
-            <div className="movie-info-card" style={{ padding: '15px', color: '#ccc', background: '#1a1a1a', marginTop: '10px', borderRadius: '8px' }}>
+            <div className="movie-info-card" style={{ padding: '15px', color: 'var(--text-dim)', background: 'var(--bg-card)', marginTop: '10px', borderRadius: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <h1 style={{ color: '#fff', fontSize: '1.2rem', margin: '0 0 10px 0' }}>{detail.title}</h1>
+                <h1 style={{ color: 'var(--text-main)', fontSize: '1.2rem', margin: '0 0 10px 0' }}>{detail.title}</h1>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <button
                     onClick={toggleMoyu}
                     style={{
-                      background: 'rgba(255,255,255,0.1)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      color: '#fff',
+                      background: 'var(--bg-input)',
+                      border: '1px solid rgba(128,128,128,0.3)',
+                      color: 'var(--text-main)',
                       padding: '4px 12px',
                       borderRadius: '100px',
                       fontSize: '0.8rem',
@@ -331,7 +331,7 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
                   >
                     <span>🐟</span> 摸鱼模式
                   </button>
-                  {detail.remark && <span style={{ color: '#ec2d7a', fontSize: '0.85rem', fontWeight: '700' }}>{detail.remark}</span>}
+                  {detail.remark && <span style={{ color: 'var(--primary)', fontSize: '0.85rem', fontWeight: '700' }}>{detail.remark}</span>}
                 </div>
               </div>
 
@@ -344,10 +344,10 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
               <div style={{ fontSize: '0.85rem', lineHeight: '1.5' }}>
                 {detail.actor && <p style={{ margin: '0 0 5px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><strong>主演：</strong>{detail.actor}</p>}
 
-                <div style={{ borderTop: '1px solid #333', marginTop: '10px', paddingTop: '10px' }}>
+                <div style={{ borderTop: '1px solid rgba(128,128,128,0.3)', marginTop: '10px', paddingTop: '10px' }}>
                   <div
                     style={{
-                      color: '#999',
+                      color: 'var(--text-dim)',
                       display: '-webkit-box',
                       WebkitLineClamp: isDescCollapsed ? 1 : 'unset',
                       WebkitBoxOrient: 'vertical',
@@ -371,15 +371,15 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
 
         <div className="episode-sidebar">
           {altSources.length > 0 && (
-            <div className="alt-sources-box" style={{ marginBottom: '20px', padding: '15px', background: 'rgba(236, 45, 122, 0.1)', border: '1px solid #ec2d7a', borderRadius: '8px' }}>
-              <div style={{ color: '#ec2d7a', fontSize: '0.9rem', marginBottom: '10px', fontWeight: 'bold' }}>🌚 发现可用替代路线：</div>
+            <div className="alt-sources-box" style={{ marginBottom: '20px', padding: '15px', borderRadius: '8px' }}>
+              <div style={{ color: 'var(--primary)', fontSize: '0.9rem', marginBottom: '10px', fontWeight: 'bold' }}>🌚 发现可用替代路线：</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {altSources.map(alt => (
                   <button
                     key={alt.id}
                     onClick={() => handleSwitchSource(alt)}
                     style={{
-                      background: '#ec2d7a',
+                      background: 'var(--primary)',
                       color: '#fff',
                       border: 'none',
                       padding: '5px 12px',

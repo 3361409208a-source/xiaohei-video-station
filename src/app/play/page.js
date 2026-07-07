@@ -103,11 +103,14 @@ function PlayContent() {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <header className="site-header" style={{ background: '#111' }}>
-        <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Link href="/" className="logo">🐾 小黑搜影</Link>
-          <div style={{ fontSize: '0.9rem', color: '#888' }}>{detail?.title || '正在加载...'}</div>
-          <Link href="/" style={{ color: '#ccc', textDecoration: 'none', fontSize: '0.8rem' }}>返回搜索</Link>
+      <header className="site-header">
+        <div className="container header-inner">
+          <Link href="/" className="logo-area">
+            <img src="/logo.png" alt="logo" className="logo-img" />
+            <div className="logo-text">小黑<span>搜影</span></div>
+          </Link>
+          <div style={{ fontSize: '0.9rem', color: 'var(--text-dim)', flex: 1, textAlign: 'center', padding: '0 15px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{detail?.title || '正在加载...'}</div>
+          <Link href="/" style={{ color: 'var(--text-dim)', textDecoration: 'none', fontSize: '0.8rem', whiteSpace: 'nowrap', flexShrink: 0 }}>返回搜索</Link>
         </div>
       </header>
 
