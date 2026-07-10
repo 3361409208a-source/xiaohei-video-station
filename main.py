@@ -32,7 +32,9 @@ app.add_middleware(
 CONFIG_FILE = "config.json"
 SOURCES_FILE = "sources.json"
 TRENDS_FILE = "search_trends.json"
-ADMIN_PASSWORD = "7897"
+CATEGORY_RULES_FILE = "category_rules.json"
+# 必须通过环境变量配置，禁止在源码中硬编码
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "").strip()
 
 def load_json(path, default):
     if os.path.exists(path):
@@ -46,12 +48,74 @@ def save_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+_category_rules_cache = None
+
+def load_category_rules():
+    global _category_rules_cache
+    if _category_rules_cache is None:
+        _category_rules_cache = load_json(CATEGORY_RULES_FILE, {"categories": {}, "major_map": []})
+    return _category_rules_cache
+
+def build_category_where(t):
+    """根据 category_rules.json 生成 SQL WHERE 片段与参数，与 JS matchCategory 对齐。"""
+    if not t:
+        return "", []
+
+    rules = load_category_rules().get("categories", {})
+    rule = rules.get(t)
+
+    if not rule:
+        return " AND category = ?", [t]
+
+    if rule.get("mode") == "other":
+        clauses = []
+        params = []
+        for kw in rule.get("other_exclude", []):
+            clauses.append("category NOT LIKE ?")
+            params.append(f"%{kw}%")
+        if not clauses:
+            return "", []
+        return " AND (" + " AND ".join(clauses) + ")", params
+
+    include_parts = []
+    params = []
+    for kw in rule.get("include", []):
+        include_parts.append("category LIKE ?")
+        params.append(f"%{kw}%")
+    for kw in rule.get("title_include", []):
+        include_parts.append("title LIKE ?")
+        params.append(f"%{kw}%")
+
+    if not include_parts:
+        return " AND category = ?", [t]
+
+    sql = " AND (" + " OR ".join(include_parts) + ")"
+
+    for kw in rule.get("exclude", []):
+        sql += " AND category NOT LIKE ?"
+        params.append(f"%{kw}%")
+    for kw in rule.get("title_exclude", []):
+        sql += " AND title NOT LIKE ?"
+        params.append(f"%{kw}%")
+
+    return sql, params
+
+def map_to_major_category(category):
+    if not category:
+        return "电影"
+    lower = category.lower()
+    for entry in load_category_rules().get("major_map", []):
+        for kw in entry.get("match", []):
+            if kw.lower() in lower:
+                return entry.get("major", category)
+    return category
+
 def get_active_sources():
     sources = load_json(SOURCES_FILE, [])
     return [s for s in sources if s.get("active", True)]
 
 def verify_admin(x_admin_token: str = Header(None)):
-    if x_admin_token != ADMIN_PASSWORD:
+    if not ADMIN_PASSWORD or not x_admin_token or x_admin_token != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
@@ -99,23 +163,6 @@ def parse_item(item, engine):
         "source_tip": engine.get("tip", "极速")
     }
 
-@app.get("/api/sitemap-raw")
-def get_sitemap_raw(page_size: int = Query(1000), chunk: int = Query(0)):
-    conn = get_db()
-    conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
-    cursor = conn.cursor()
-    
-    # 按照 chunk 索引直接分页，从 0 开始
-    limit = page_size
-    offset = chunk * page_size
-    
-    # 增加 ORDER BY id 确保分页结果不跳变
-    cursor.execute("SELECT id, vod_id, title, category, update_time FROM movies ORDER BY id LIMIT ? OFFSET ?", (limit, offset))
-    rows = cursor.fetchall()
-    results = [dict(r) for r in rows]
-    conn.close()
-    return results
-
 def track_search(q):
     if not q: return
     trends = load_json(TRENDS_FILE, {})
@@ -132,18 +179,10 @@ def search(q: str = Query(None), t: str = Query(None), class_tag: str = Query(No
         
         query = "SELECT * FROM movies WHERE 1=1"
         params = []
-        
-        if t == "短剧":
-            query += " AND (category LIKE '%短剧%' OR title LIKE '%短剧%')"
-        elif t == "电视剧":
-            query += " AND (category LIKE '%剧%' OR category LIKE '%电视%') AND category NOT LIKE '%短剧%' AND title NOT LIKE '%短剧%' AND category NOT LIKE '%解说%'"
-        elif t == "动漫":
-            query += " AND (category LIKE '%动漫%' OR category LIKE '%动画%') AND category NOT LIKE '%解说%'"
-        elif t == "电影":
-            query += " AND (category LIKE '%电影%' OR category LIKE '%片%') AND category NOT LIKE '%解说%'"
-        else:
-            query += " AND category = ?"
-            params.append(t)
+
+        where_sql, where_params = build_category_where(t)
+        query += where_sql
+        params.extend(where_params)
             
         if class_tag:
             query += " AND category = ?"
@@ -168,14 +207,15 @@ def search(q: str = Query(None), t: str = Query(None), class_tag: str = Query(No
 
     sources = get_active_sources()
     if q: track_search(q)
-    # 实时搜索逻辑保持不变
+    # 实时搜索：按 title+source 去重，保留同片多源供换源
     unique_results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(sources))) as executor:
         futures = [executor.submit(fetch_single_page, eng, keyword=q, pg=pg) for eng in sources]
         for future in concurrent.futures.as_completed(futures):
             for item in future.result():
-                if item['title'] not in unique_results:
-                    unique_results[item['title']] = item
+                key = f"{item.get('title', '')}::{item.get('source_name', '')}"
+                if key not in unique_results:
+                    unique_results[key] = item
     return list(unique_results.values())
 
 @app.get("/api/categories")
@@ -185,19 +225,9 @@ def get_categories(t: str = Query(...)):
     
     query = "SELECT DISTINCT category FROM movies WHERE 1=1"
     params = []
-    
-    if t == "短剧":
-        query += " AND (category LIKE '%短剧%' OR title LIKE '%短剧%')"
-    elif t == "电视剧":
-        query += " AND (category LIKE '%剧%' OR category LIKE '%电视%') AND category NOT LIKE '%短剧%'"
-    elif t == "动漫":
-        query += " AND (category LIKE '%动漫%' OR category LIKE '%动画%')"
-    elif t == "电影":
-        # 宽泛匹配电影分类，包含蓝光等
-        query += " AND (category LIKE '%电影%' OR category LIKE '%片%' OR category LIKE '%蓝光%')"
-    else:
-        query += " AND category LIKE ?"
-        params.append(f"%{t}%")
+    where_sql, where_params = build_category_where(t)
+    query += where_sql
+    params.extend(where_params)
         
     cursor.execute(query, params)
     cats = [row[0] for row in cursor.fetchall() if row[0]]
@@ -256,8 +286,40 @@ def get_public_config():
         "site_name": cfg.get("site_name", "🐾 小黑搜影"), 
         "notice": cfg.get("notice", ""), 
         "footer": cfg.get("footer", "© 2026"),
-        "theme": cfg.get("theme", "")
+        "theme": cfg.get("theme", ""),
+        "ads": cfg.get("ads", {"enabled": False, "slots": {}})
     }
+
+@app.get("/api/trends")
+def get_public_trends(limit: int = Query(10)):
+    trends = load_json(TRENDS_FILE, {})
+    sorted_items = sorted(trends.items(), key=lambda item: item[1], reverse=True)[:max(1, min(limit, 50))]
+    return [{"keyword": k, "count": v} for k, v in sorted_items]
+
+def cleanup_storage(trends_keep: int = 50):
+    trends = load_json(TRENDS_FILE, {})
+    sorted_trends = dict(sorted(trends.items(), key=lambda item: item[1], reverse=True)[:trends_keep])
+    save_json(TRENDS_FILE, sorted_trends)
+
+    vacuumed = False
+    try:
+        conn = get_db()
+        conn.execute("VACUUM")
+        conn.close()
+        vacuumed = True
+    except Exception as e:
+        print(f"[Cleanup] VACUUM failed: {e}")
+
+    return {
+        "status": "success",
+        "trends_kept": len(sorted_trends),
+        "vacuumed": vacuumed
+    }
+
+@app.post("/api/admin/cleanup")
+def admin_cleanup(x_admin_token: str = Header(None)):
+    verify_admin(x_admin_token)
+    return cleanup_storage(50)
 
 @app.get("/api/detail")
 def get_detail(id: str, src: str):
@@ -353,6 +415,7 @@ def get_detail(id: str, src: str):
     if row:
         item = dict(row)
         return {
+            "vod_id": item.get("vod_id", actual_vod_id),
             "title": item["title"],
             "poster": item.get("poster", ""),
             "category": item.get("category", ""),
@@ -362,6 +425,7 @@ def get_detail(id: str, src: str):
             "area": "",
             "actor": "",
             "remark": "",
+            "source_name": item.get("source_name", actual_src),
             "_from_cache": True  # 标记此为缓存数据，链接可能已过期
         }
     return None
@@ -389,28 +453,29 @@ def get_collector_status(x_admin_token: str = Header(None)):
     data_stats = {"total": count, "size": f"{os.stat(db_path).st_size/1024/1024:.2f} MB" if os.path.exists(db_path) else "0 MB"}
     return {"log": log_content, "stats": data_stats}
 
-@app.get("/api/admin/stats")
-def get_admin_stats(x_admin_token: str = Header(None)):
-    verify_admin(x_admin_token)
+def _movie_stats():
     conn = get_db()
     cursor = conn.cursor()
-    
-    # 总数
     total = conn.execute("SELECT count(*) FROM movies").fetchone()[0]
-    
-    # 【动态分类】直接从数据库中统计所有出现过的分类名称
     cursor.execute("SELECT category, COUNT(*) as count FROM movies GROUP BY category ORDER BY count DESC")
     rows = cursor.fetchall()
-    
-    # 转换为字典格式返回
     cats = {row[0]: row[1] for row in rows}
-    
     conn.close()
     return {
         "total": total,
         "categories": cats,
         "lastUpdate": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     }
+
+@app.get("/api/stats")
+def get_public_stats():
+    """首页星空大屏等公开展示用，不含敏感信息"""
+    return _movie_stats()
+
+@app.get("/api/admin/stats")
+def get_admin_stats(x_admin_token: str = Header(None)):
+    verify_admin(x_admin_token)
+    return _movie_stats()
 
 @app.post("/api/admin/trigger-collector")
 def trigger_collector(x_admin_token: str = Header(None)):
@@ -488,58 +553,17 @@ def get_sitemap_raw(chunk: int = Query(0)):
     conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
     cursor = conn.cursor()
     page_size = 5000
-    
-    # 按照 chunk 索引直接分页，从 0 开始
     limit = page_size
     offset = chunk * page_size
-    
-    # 增加 ORDER BY id 确保分页结果不跳变
-    cursor.execute("SELECT id, vod_id, title, category, update_time FROM movies ORDER BY id LIMIT ? OFFSET ?", (limit, offset))
+    # 返回 vod_id + source_name，与站内 /movie/{title}-{vod_id}?src= 一致
+    cursor.execute(
+        "SELECT id, vod_id, title, category, source_name, update_time FROM movies ORDER BY id LIMIT ? OFFSET ?",
+        (limit, offset),
+    )
     rows = cursor.fetchall()
     results = [dict(r) for r in rows]
     conn.close()
     return results
-
-@app.get("/api/search")
-def search_movies(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
-    conn = get_db()
-    conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
-    cursor = conn.cursor()
-    
-    page_size = 30
-    offset = (pg - 1) * page_size
-    
-    where_clauses = []
-    params = []
-    
-    if q:
-        where_clauses.append("(title LIKE ? OR description LIKE ?)")
-        params.extend([f"%{q}%", f"%{q}%"])
-    
-    if t:
-        if t == "电影":
-            where_clauses.append("(category LIKE '%电影%' OR category LIKE '%片%' OR category LIKE '%蓝光%') AND category NOT LIKE '%解说%'")
-        elif t == "电视剧":
-            where_clauses.append("(category LIKE '%剧%' OR category LIKE '%连续剧%' OR category LIKE '%电视%') AND category NOT LIKE '%短剧%' AND category NOT LIKE '%解说%'")
-        elif t == "动漫":
-            where_clauses.append("(category LIKE '%动漫%' OR category LIKE '%动画%' OR category LIKE '%番剧%') AND category NOT LIKE '%解说%'")
-        elif t == "综艺":
-            where_clauses.append("(category LIKE '%综艺%' OR category LIKE '%晚会%') AND category NOT LIKE '%解说%'")
-        elif t == "其他":
-            where_clauses.append("category NOT LIKE '%电影%' AND category NOT LIKE '%片%' AND category NOT LIKE '%剧%' AND category NOT LIKE '%动漫%' AND category NOT LIKE '%综艺%'")
-        else:
-            where_clauses.append("category = ?")
-            params.append(t)
-    
-    where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
-    query = f"SELECT * FROM movies {where_sql} ORDER BY update_time DESC LIMIT ? OFFSET ?"
-    params.extend([page_size, offset])
-    
-    cursor.execute(query, tuple(params))
-    items = cursor.fetchall()
-    conn.close()
-    return [dict(i) for i in items]
-
 
 # ==================== 视频代理接口 ====================
 # 解决视频 CDN 防盗链 403 问题
@@ -551,6 +575,36 @@ PROXY_HEADERS = {
     "Accept-Language": "zh-CN,zh;q=0.9",
     # 故意不设置 Referer，防盗链服务器就看不到你的站点域名
 }
+
+def is_safe_proxy_url(raw_url: str):
+    """与 Next proxySafety.js 对齐的 SSRF 防护"""
+    if not raw_url:
+        return False, "Missing url"
+    try:
+        parsed = urllib.parse.urlparse(raw_url)
+    except Exception:
+        return False, "Invalid url"
+    if parsed.scheme not in ("http", "https"):
+        return False, "Only http/https allowed"
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return False, "Invalid host"
+    if host in ("localhost", "metadata.google.internal") or host.endswith(".localhost"):
+        return False, "Blocked host"
+    if host in ("::1",) or host.startswith("fe80:") or host.startswith("fc") or host.startswith("fd"):
+        return False, "Blocked IPv6 address"
+    # IPv4 私网 / 本机 / link-local / CGNAT
+    parts = host.split(".")
+    if len(parts) == 4 and all(p.isdigit() for p in parts):
+        try:
+            a, b, c, d = [int(x) for x in parts]
+        except ValueError:
+            return False, "Invalid IP"
+        if any(n > 255 for n in (a, b, c, d)):
+            return False, "Invalid IP"
+        if a in (0, 10, 127) or (a == 169 and b == 254) or (a == 192 and b == 168) or (a == 172 and 16 <= b <= 31) or (a == 100 and 64 <= b <= 127):
+            return False, "Blocked private IP"
+    return True, ""
 
 def rewrite_m3u8(content: str, original_url: str, proxy_base: str) -> str:
     """将 m3u8 内的所有 URI 改写为走代理"""
@@ -578,6 +632,10 @@ def rewrite_m3u8(content: str, original_url: str, proxy_base: str) -> str:
 @app.get("/api/proxy")
 def video_proxy(request: Request, url: str = Query(...)):
     """视频代理：服务端不带 Referer 请求 CDN，m3u8 内链接自动改写"""
+    ok, reason = is_safe_proxy_url(url)
+    if not ok:
+        raise HTTPException(status_code=400, detail=reason or "Blocked url")
+
     # 构建代理自身的 base URL（用于 m3u8 内链接改写）
     base = str(request.base_url).rstrip("/")
     proxy_base = f"{base}/api/proxy"

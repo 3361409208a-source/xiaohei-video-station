@@ -39,7 +39,8 @@
    - 在 Vercel 后台 `Settings -> Environment Variables`。
    - 添加键：`NEXT_PUBLIC_API_URL`。
    - 值：`http://您的服务器IP:8000`。
-4. **点击 Deploy**：等待 1 分钟即可生成访问链接。
+4. **后端管理员密码（必配）**：在 Railway / VPS 上设置环境变量 `ADMIN_PASSWORD`（任意强密码）。未设置时所有管理接口将拒绝访问；密码不得再写入前端代码。
+5. **点击 Deploy**：等待 1 分钟即可生成访问链接。
 
 ### 3. 域名实操与隐私保护 (2026-01-28 更新)
 1. **NameSilo 购买**：在 NameSilo 以 **$1.88** 的极低价格购入 `.top` 域名。

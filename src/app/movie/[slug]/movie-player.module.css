@@ -1,0 +1,168 @@
+.titleBar {
+  font-size: 0.9rem;
+  color: #888;
+  flex: 1;
+  text-align: center;
+  padding: 0 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.loadingIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+
+.backLink {
+  color: #ccc;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cacheWarn {
+  background: rgba(236, 45, 122, 0.1);
+  padding: 10px;
+  color: #ec2d7a;
+  font-size: 0.85rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(236, 45, 122, 0.2);
+}
+
+.playLayout {
+  flex: 1;
+}
+
+.playerBox {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.infoCard {
+  padding: 15px;
+  color: #ccc;
+  background: #1a1a1a;
+  margin-top: 10px;
+  border-radius: 8px;
+}
+
+.infoHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.infoTitle {
+  color: #fff;
+  font-size: 1.2rem;
+  margin: 0 0 10px 0;
+}
+
+.infoActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.moyuBtn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 100px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.remark {
+  color: #ec2d7a;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.descBlock {
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.actorLine {
+  margin: 0 0 5px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.descDivider {
+  border-top: 1px solid #333;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.descText {
+  color: #999;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.6;
+}
+
+.descCollapsed {
+  -webkit-line-clamp: 1;
+}
+
+.descToggle {
+  color: var(--primary);
+  font-size: 0.8rem;
+  margin-top: 5px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.altBox {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: rgba(236, 45, 122, 0.1);
+  border: 1px solid #ec2d7a;
+  border-radius: 8px;
+}
+
+.altTitle {
+  color: #ec2d7a;
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+
+.altBtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.altBtn {
+  background: #ec2d7a;
+  color: #fff;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}

@@ -20,7 +20,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="zh-CN">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <ThemeInitializer />
         {children}

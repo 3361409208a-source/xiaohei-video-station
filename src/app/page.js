@@ -3,6 +3,9 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import ThreeDashboard from '@/components/ThreeDashboard';
+import AdSlot from '@/components/AdSlot';
+
+const FALLBACK_HOT = ['剑来', '小城大事'];
 
 function HomeContent() {
   const searchParams = useSearchParams();
@@ -10,9 +13,10 @@ function HomeContent() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('首页');
-  const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '' });
+  const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '', ads: { enabled: false } });
   const [isMobile, setIsMobile] = useState(null); // null 表示尚未在客户端确定
   const [stats, setStats] = useState(null);
+  const [hotSearches, setHotSearches] = useState(FALLBACK_HOT);
 
   const categories = [
     { name: '首页', path: '/', active: true },
@@ -25,13 +29,20 @@ function HomeContent() {
     { name: '纪录片', path: '/channel/纪录片' }
   ];
 
-  const hotSearches = ['剑来', '小城大事'];
-
   useEffect(() => {
     fetch('/api/config').then(res => res.json()).then(data => setConfig(data));
-    fetch('/api/admin/stats', { headers: { 'x-admin-token': '7897' } })
+    fetch('/api/trends?limit=10')
       .then(res => res.json())
       .then(data => {
+        if (Array.isArray(data) && data.length) {
+          setHotSearches(data.map(item => item.keyword || item).filter(Boolean));
+        }
+      })
+      .catch(() => setHotSearches(FALLBACK_HOT));
+    fetch('/api/stats')
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) throw new Error(data.error);
         const filteredCats = {};
         Object.entries(data.categories || {}).forEach(([k, v]) => {
           if (!k.includes('伦理') && !k.includes('解说')) filteredCats[k] = v;
@@ -135,6 +146,7 @@ function HomeContent() {
                 <span key={tag} className="hot-tag" style={{ cursor: 'pointer' }} onClick={() => { setQuery(tag); handleSearch(tag); }}>{tag}</span>
               ))}
             </div>
+            <AdSlot slotId="home_below_search" adsConfig={config.ads} />
           </div>
         </div>
       </section>

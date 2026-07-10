@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDetail } from '@/utils/backupService';
+import { isValidDetailPayload } from '@/utils/searchHelpers';
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -9,7 +10,7 @@ export async function GET(request) {
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
   if (API_URL) {
-    const backendUrl = new URL(`${API_URL}/api/detail?id=${id}&src=${encodeURIComponent(src)}`);
+    const backendUrl = new URL(`${API_URL}/api/detail?id=${id}&src=${encodeURIComponent(src || '')}`);
     try {
       const response = await fetch(backendUrl.toString(), {
         signal: AbortSignal.timeout(2000)
@@ -18,8 +19,8 @@ export async function GET(request) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      if (data && (data.status === 'error' || data.error)) {
-        throw new Error(`API error: ${data.message || data.error}`);
+      if (!isValidDetailPayload(data)) {
+        throw new Error(`API empty/error: ${data?.message || data?.error || 'null'}`);
       }
       return NextResponse.json(data);
     } catch (error) {

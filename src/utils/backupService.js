@@ -1,5 +1,8 @@
 import fs from 'fs';
 import path from 'path';
+import { matchCategory, mapToMajorCategory } from './categoryRules';
+
+export { matchCategory, mapToMajorCategory };
 
 // 加载 sources.json 中的活跃源
 function getActiveSources() {
@@ -105,47 +108,6 @@ function parseItem(item, engine) {
   };
 }
 
-// 判断影片是否属于指定大类
-function matchCategory(typeName, title, t) {
-  if (!typeName) typeName = '';
-  if (!title) title = '';
-  const lowerType = typeName.toLowerCase();
-  const lowerTitle = title.toLowerCase();
-
-  if (t === "短剧") {
-    return lowerType.includes('短剧') || lowerTitle.includes('短剧');
-  }
-  if (t === "电视剧") {
-    return (lowerType.includes('剧') || lowerType.includes('电视')) &&
-           !lowerType.includes('短剧') &&
-           !lowerTitle.includes('短剧') &&
-           !lowerType.includes('解说');
-  }
-  if (t === "动漫") {
-    return (lowerType.includes('动漫') || lowerType.includes('动画')) &&
-           !lowerType.includes('解说');
-  }
-  if (t === "电影") {
-    return (lowerType.includes('电影') || lowerType.includes('片') || lowerType.includes('蓝光')) &&
-           !lowerType.includes('解说') &&
-           !lowerType.includes('短剧') &&
-           !lowerTitle.includes('短剧');
-  }
-  if (t === "综艺") {
-    return (lowerType.includes('综艺') || lowerType.includes('晚会')) &&
-           !lowerType.includes('解说');
-  }
-  if (t === "其他") {
-    return !lowerType.includes('电影') &&
-           !lowerType.includes('片') &&
-           !lowerType.includes('剧') &&
-           !lowerType.includes('动漫') &&
-           !lowerType.includes('综艺') &&
-           !lowerType.includes('解说');
-  }
-  return typeName === t;
-}
-
 // 1. 获取今日热播 (最新 12 个)
 export async function getLatest() {
   const sources = getActiveSources();
@@ -166,11 +128,12 @@ export async function getLatest() {
   const allResults = await Promise.all(promises);
   const uniqueResults = {};
   
-  // 合并并去重
+  // 合并并去重（保留同片多源）
   for (const list of allResults) {
     for (const item of list) {
-      if (item.title && !uniqueResults[item.title]) {
-        uniqueResults[item.title] = item;
+      const key = `${item.title}::${item.source_name || item.source || ''}`;
+      if (item.title && !uniqueResults[key]) {
+        uniqueResults[key] = item;
       }
     }
   }
@@ -207,22 +170,23 @@ export async function searchMovies(q, t, class_tag, pg = 1) {
     const uniqueResults = {};
     for (const list of allResults) {
       for (const item of list) {
-        if (item.title && !uniqueResults[item.title]) {
-          uniqueResults[item.title] = item;
+        const key = `${item.title}::${item.source_name || item.source || ''}`;
+        if (item.title && !uniqueResults[key]) {
+          uniqueResults[key] = item;
         }
       }
     }
     return Object.values(uniqueResults);
   } else if (t) {
-    // 分类浏览模式
-    // 没有 SQLite，我们直接拉取各源最新更新，并在内存中进行分类和标签过滤
-    // 抓取当前页 pg，为保证数据量，我们同时抓取当前页及其后一页 (pg 和 pg + 1)
-    const pageNum = parseInt(pg, 10) || 1;
-    const pagesToFetch = [pageNum, pageNum + 1];
+    // 分类浏览模式（无 SQLite）：拉多页后内存过滤，再按 pg 真分页
+    const pageNum = Math.max(1, parseInt(pg, 10) || 1);
+    const pageSize = 36;
+    // 多抓几页 CMS 列表，保证过滤后仍有足够条目可分页
+    const pagesToFetch = [pageNum, pageNum + 1, pageNum + 2, Math.max(1, pageNum * 2)];
 
     const promises = [];
     for (const engine of sources) {
-      for (const p of pagesToFetch) {
+      for (const p of [...new Set(pagesToFetch)]) {
         promises.push(
           (async () => {
             try {
@@ -245,12 +209,12 @@ export async function searchMovies(q, t, class_tag, pg = 1) {
     const uniqueResults = {};
     for (const list of allResults) {
       for (const item of list) {
-        if (item.title && !uniqueResults[item.title]) {
-          // 进行分类和大类标签过滤
+        const key = `${item.title}::${item.source_name || item.source || ''}`;
+        if (item.title && !uniqueResults[key]) {
           const isCategoryMatch = matchCategory(item.category, item.title, t);
           const isTagMatch = !class_tag || item.category === class_tag;
           if (isCategoryMatch && isTagMatch) {
-            uniqueResults[item.title] = item;
+            uniqueResults[key] = item;
           }
         }
       }
@@ -260,9 +224,8 @@ export async function searchMovies(q, t, class_tag, pg = 1) {
       return new Date(b.update_time) - new Date(a.update_time);
     });
 
-    // 内存分页：每页返回 36 条记录
-    const pageSize = 36;
-    return filteredList.slice(0, pageSize);
+    const offset = (pageNum - 1) * pageSize;
+    return filteredList.slice(offset, offset + pageSize);
   }
 
   return [];
@@ -346,8 +309,9 @@ export async function getReels(pg = 1) {
   const uniqueResults = {};
   for (const list of allResults) {
     for (const item of list) {
-      if (item.title && !uniqueResults[item.title]) {
-        uniqueResults[item.title] = item;
+      const key = `${item.title}::${item.source_name || item.source || ''}`;
+      if (item.title && !uniqueResults[key]) {
+        uniqueResults[key] = item;
       }
     }
   }

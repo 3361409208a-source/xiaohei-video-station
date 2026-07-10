@@ -2,5 +2,21 @@
   "site_name": "小黑搜影-在线免费看",
   "notice": "欢迎访问全网聚合视频站，本站资源均来自第三方，请勿非法传播。",
   "footer": "© 2026 小黑视频站 ",
-  "theme": "green"
+  "theme": "green",
+  "ads": {
+    "enabled": false,
+    "slots": {
+      "home_below_search": {
+        "networks": [
+          { "type": "script", "src": "", "id": "" },
+          { "type": "image", "src": "", "href": "/", "label": "推广位（配置 ads.enabled 后展示）" }
+        ]
+      },
+      "player_below": {
+        "networks": [
+          { "type": "image", "src": "", "href": "/", "label": "推广位（配置 ads.enabled 后展示）" }
+        ]
+      }
+    }
+  }
 }

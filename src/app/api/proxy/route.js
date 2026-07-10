@@ -1,3 +1,4 @@
+import { isSafeProxyUrl } from '@/utils/proxySafety';
 import { NextResponse } from 'next/server';
 
 function rewriteM3u8(content, originalUrl, proxyBase) {
@@ -9,15 +10,12 @@ function rewriteM3u8(content, originalUrl, proxyBase) {
     if (!stripped) return line;
 
     if (stripped.startsWith("#")) {
-      // 匹配 URI="..." 标签并改写
       return stripped.replace(/URI="([^"]+)"/g, (match, uri) => {
-        // 排除可能已经被改写过或者无需改写的空路径
         if (uri.startsWith('data:')) return match;
         const absUri = uri.startsWith("http") ? uri : baseUrl + uri;
         return `URI="${proxyBase}?url=${encodeURIComponent(absUri)}"`;
       });
     } else {
-      // 视频分片链接
       const absUri = stripped.startsWith("http") ? stripped : baseUrl + stripped;
       return `${proxyBase}?url=${encodeURIComponent(absUri)}`;
     }
@@ -28,12 +26,12 @@ function rewriteM3u8(content, originalUrl, proxyBase) {
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get('url');
-  
-  if (!url) {
-    return new Response('Missing url parameter', { status: 400 });
+
+  const safety = isSafeProxyUrl(url);
+  if (!safety.ok) {
+    return new Response(safety.reason || 'Blocked url', { status: 400 });
   }
 
-  // 构造本地代理自身的基准 URL
   const origin = new URL(request.url).origin;
   const proxyBase = `${origin}/api/proxy`;
 
@@ -63,7 +61,6 @@ export async function GET(request) {
         }
       });
     } else {
-      // 透传 ts 分片等二进制媒体流
       return new Response(response.body, {
         headers: {
           'Access-Control-Allow-Origin': '*',

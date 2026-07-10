@@ -1,6 +1,9 @@
 'use client';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import Recommendations from '@/components/Recommendations';
+import AdSlot from '@/components/AdSlot';
+import styles from './movie-player.module.css';
 
 export default function MoviePlayer({ id, title, src, initialUrl }) {
   const [detail, setDetail] = useState(null);
@@ -13,7 +16,7 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
   const playerRef = useRef(null);
   const dpInstance = useRef(null);
   const [isDescCollapsed, setIsDescCollapsed] = useState(true);
-  const [config, setConfig] = useState({ site_name: '小黑搜影', footer: '' });
+  const [config, setConfig] = useState({ site_name: '小黑搜影', footer: '', ads: { enabled: false } });
 
   // 当换源或换集时，重置已尝试的源
   useEffect(() => {
@@ -142,8 +145,6 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && currentUrl) {
-      const backendBase = process.env.NEXT_PUBLIC_API_URL || '';
-
       Promise.all([
         import('hls.js'),
         import('dplayer')
@@ -151,8 +152,7 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
         const Hls = HlsModule.default;
         const DPlayer = DPlayerModule.default;
 
-        // 智能播放：先直连，失败后再走代理
-        // 避免 Railway 数据中心 IP 被 CDN 封锁（比如 IP 白名单限制导致代理 404）
+        // 智能播放：先直连，失败后再走 Next /api/proxy（带 SSRF 防护）
         let triedProxy = false;
 
         const buildHls = (url) => {
@@ -163,16 +163,15 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
             if (!data.fatal) return;
 
             if (!triedProxy) {
-              // 第一次失败 → 改用代理重试
               triedProxy = true;
-              const proxiedUrl = `${backendBase}/api/proxy?url=${encodeURIComponent(currentUrl)}`;
+              // 始终走同源 Next 代理，避免打到无 SSRF 校验的 FastAPI /api/proxy
+              const proxiedUrl = `/api/proxy?url=${encodeURIComponent(currentUrl)}`;
               console.log(`直连失败 (${data.details})，切换代理: ${proxiedUrl}`);
               hls.destroy();
               const proxyHls = buildHls(proxiedUrl);
               proxyHls.attachMedia(dpInstance.current?.video || hls.media);
               if (dpInstance.current) dpInstance.current.hls = proxyHls;
             } else {
-              // 代理也失败 → 搜索替代资源
               console.log('代理也失败，正在搜索替代资源...');
               hls.destroy();
               findAlternativeSources(detail?.title || title, true);
@@ -252,29 +251,16 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
             <div className="logo-text">小黑<span>搜影</span></div>
           </Link>
 
-          <div style={{
-            fontSize: '0.9rem',
-            color: '#888',
-            flex: 1,
-            textAlign: 'center',
-            padding: '0 15px',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px'
-          }}>
+          <div className={styles.titleBar}>
             {detail?.title ? detail.title : (
               <>
-                <img src="/logo.gif" alt="loading" style={{ width: '24px', height: '24px', borderRadius: '4px' }} />
+                <img src="/logo.gif" alt="loading" className={styles.loadingIcon} />
                 <span>正在加载...</span>
               </>
             )}
           </div>
 
-          <Link href="/" style={{ color: '#ccc', fontSize: '0.8rem', whiteSpace: 'nowrap', flexShrink: 0 }}>返回搜索</Link>
+          <Link href="/" className={styles.backLink}>返回搜索</Link>
         </div>
       </header>
 
@@ -284,8 +270,8 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
             <span className="broadcast-icon">📢</span>
             <span>防骗提醒：正在播放的视频中若出现任何广告水印，请务必提高警惕，切勿转账或参与，守护好您的财产安全！</span>
           </div>
-          <button 
-            className="broadcast-close-btn" 
+          <button
+            className="broadcast-close-btn"
             onClick={() => {
               setShowNotice(false);
               if (typeof window !== 'undefined') {
@@ -300,66 +286,43 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
       )}
 
       {detail?._from_cache && (
-        <div style={{ background: 'rgba(236, 45, 122, 0.1)', padding: '10px', color: '#ec2d7a', fontSize: '0.85rem', textAlign: 'center', borderBottom: '1px solid rgba(236, 45, 122, 0.2)' }}>
+        <div className={styles.cacheWarn}>
           ⚠️ 检测到该线路记录较旧可能无法播放，系统正在为您寻找最新播放源...
         </div>
       )}
 
-
-      <div className="play-layout" style={{ flex: 1 }}>
+      <div className={`play-layout ${styles.playLayout}`}>
         <div className="player-main">
-          <div ref={playerRef} style={{ width: '100%', aspectRatio: '16/9' }}></div>
+          <div ref={playerRef} className={styles.playerBox}></div>
+          <AdSlot slotId="player_below" adsConfig={config.ads} />
           {detail && (
-            <div className="movie-info-card" style={{ padding: '15px', color: '#ccc', background: '#1a1a1a', marginTop: '10px', borderRadius: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <h1 style={{ color: '#fff', fontSize: '1.2rem', margin: '0 0 10px 0' }}>{detail.title}</h1>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <button
-                    onClick={toggleMoyu}
-                    style={{
-                      background: 'rgba(255,255,255,0.1)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      color: '#fff',
-                      padding: '4px 12px',
-                      borderRadius: '100px',
-                      fontSize: '0.8rem',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px'
-                    }}
-                  >
+            <div className={`movie-info-card ${styles.infoCard}`}>
+              <div className={styles.infoHead}>
+                <h1 className={styles.infoTitle}>{detail.title}</h1>
+                <div className={styles.infoActions}>
+                  <button onClick={toggleMoyu} className={styles.moyuBtn}>
                     <span>🐟</span> 摸鱼模式
                   </button>
-                  {detail.remark && <span style={{ color: '#ec2d7a', fontSize: '0.85rem', fontWeight: '700' }}>{detail.remark}</span>}
+                  {detail.remark && <span className={styles.remark}>{detail.remark}</span>}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px', fontSize: '0.8rem', opacity: 0.8 }}>
+              <div className={styles.metaRow}>
                 {detail.year && <span>{detail.year}</span>}
                 {detail.area && <span>{detail.area}</span>}
                 {detail.category && <span>{detail.category}</span>}
               </div>
 
-              <div style={{ fontSize: '0.85rem', lineHeight: '1.5' }}>
-                {detail.actor && <p style={{ margin: '0 0 5px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><strong>主演：</strong>{detail.actor}</p>}
+              <div className={styles.descBlock}>
+                {detail.actor && <p className={styles.actorLine}><strong>主演：</strong>{detail.actor}</p>}
 
-                <div style={{ borderTop: '1px solid #333', marginTop: '10px', paddingTop: '10px' }}>
-                  <div
-                    style={{
-                      color: '#999',
-                      display: '-webkit-box',
-                      WebkitLineClamp: isDescCollapsed ? 1 : 'unset',
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      lineHeight: '1.6'
-                    }}
-                  >
+                <div className={styles.descDivider}>
+                  <div className={`${styles.descText} ${isDescCollapsed ? styles.descCollapsed : ''}`}>
                     <strong>简介：</strong>{stripHtml(detail.description) || '暂无简介'}
                   </div>
                   <div
                     onClick={() => setIsDescCollapsed(!isDescCollapsed)}
-                    style={{ color: 'var(--primary)', fontSize: '0.8rem', marginTop: '5px', textAlign: 'center', cursor: 'pointer' }}
+                    className={styles.descToggle}
                   >
                     {isDescCollapsed ? '展开详情 ▾' : '收起详情 ▴'}
                   </div>
@@ -371,22 +334,14 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
 
         <div className="episode-sidebar">
           {altSources.length > 0 && (
-            <div className="alt-sources-box" style={{ marginBottom: '20px', padding: '15px', background: 'rgba(236, 45, 122, 0.1)', border: '1px solid #ec2d7a', borderRadius: '8px' }}>
-              <div style={{ color: '#ec2d7a', fontSize: '0.9rem', marginBottom: '10px', fontWeight: 'bold' }}>🌚 发现可用替代路线：</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            <div className={styles.altBox}>
+              <div className={styles.altTitle}>🌚 发现可用替代路线：</div>
+              <div className={styles.altBtns}>
                 {altSources.map(alt => (
                   <button
                     key={alt.id}
                     onClick={() => handleSwitchSource(alt)}
-                    style={{
-                      background: '#ec2d7a',
-                      color: '#fff',
-                      border: 'none',
-                      padding: '5px 12px',
-                      borderRadius: '4px',
-                      fontSize: '0.8rem',
-                      cursor: 'pointer'
-                    }}
+                    className={styles.altBtn}
                   >
                     切换至：{alt.source_name} ({alt.source_tip})
                   </button>
@@ -409,6 +364,12 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
               </div>
             ))}
           </div>
+          {detail && (
+            <Recommendations
+              category={detail.category}
+              currentId={detail.vod_id || id}
+            />
+          )}
         </div>
       </div>
 

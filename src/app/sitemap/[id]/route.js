@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { buildMovieSitemapUrl } from '@/utils/sitemapUrl';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,16 +40,14 @@ export async function GET(request, { params: paramsPromise }) {
     xml += `\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`;
 
     movies.forEach(m => {
-      // 对标题进行 XML 安全转义
-      const safeTitle = escapeXml(m.title);
-      const url = `${baseUrl}/movie/${encodeURIComponent(`${m.title}-${m.id}`)}?src=${encodeURIComponent(m.source || '默认')}`;
+      const url = buildMovieSitemapUrl(m, baseUrl);
       const date = m.update_time ? new Date(m.update_time).toISOString() : new Date().toISOString();
 
       xml += `\n  <url>`;
-      xml += `\n    <loc>${url}</loc>`;
+      xml += `\n    <loc>${escapeXml(url)}</loc>`;
       xml += `\n    <lastmod>${date}</lastmod>`;
-      xml += `\n    <changefreq>${isNewChunk ? 'hourly' : 'weekly'}</changefreq>`;
-      xml += `\n    <priority>1.0</priority>`;
+      xml += `\n    <changefreq>${isNewChunk ? 'daily' : 'weekly'}</changefreq>`;
+      xml += `\n    <priority>${isNewChunk ? '0.8' : '0.6'}</priority>`;
       xml += `\n  </url>`;
     });
 
