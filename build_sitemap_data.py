@@ -14,7 +14,8 @@ SAVE_PATH = os.path.join(BASE_DIR, "public", "sitemap_data.json")
 SOURCES_FILE = os.path.join(BASE_DIR, "sources.json")
 
 def log(msg):
-    log_path = os.path.join(BASE_DIR, "collector.log")
+    log_dir = os.environ.get("LOG_DIR", BASE_DIR)
+    log_path = os.path.join(log_dir, "collector.log")
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(f"{msg}\n")
         f.flush()

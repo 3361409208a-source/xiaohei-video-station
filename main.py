@@ -31,7 +31,8 @@ app.add_middleware(
 # 文件路径配置
 CONFIG_FILE = "config.json"
 SOURCES_FILE = "sources.json"
-TRENDS_FILE = "search_trends.json"
+_DATA_DIR = os.environ.get("DATA_DIR", os.path.dirname(os.path.abspath(__file__)))
+TRENDS_FILE = os.path.join(_DATA_DIR, "search_trends.json")
 ADMIN_PASSWORD = "7897"
 
 def load_json(path, default):
@@ -372,8 +373,9 @@ def get_detail(id: str, src: str):
 def get_collector_status(x_admin_token: str = Header(None)):
     verify_admin(x_admin_token)
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    log_path = os.path.join(base_dir, "collector.log")
-    db_path = os.path.join(base_dir, "data.db")
+    log_dir = os.environ.get("LOG_DIR", base_dir)
+    log_path = os.path.join(log_dir, "collector.log")
+    db_path = os.environ.get("DB_PATH", os.path.join(base_dir, "data.db"))
     log_content = ""
     if os.path.exists(log_path):
         try:

@@ -1,0 +1,36 @@
+# ---- Node.js ----
+node_modules
+.next
+out
+
+# ---- Git ----
+.git
+.gitignore
+
+# ---- 运行时数据 ----
+data.db
+collector.log
+search_trends.json
+
+# ---- Docker 自身 ----
+Dockerfile
+Dockerfile.backend
+docker-compose.yml
+.dockerignore
+
+# ---- 文档 ----
+docs
+README.md
+*.md
+
+# ---- IDE / 系统 ----
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# ---- 旧版文件（已删除但防残留） ----
+index.html
+style.css
+script.js
+play.html
