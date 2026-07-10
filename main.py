@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import requests
 import os
 import json
-from bs4 import BeautifulSoup
 import re
 import urllib.parse
 import sys
@@ -100,23 +99,6 @@ def parse_item(item, engine):
         "source_tip": engine.get("tip", "极速")
     }
 
-@app.get("/api/sitemap-raw")
-def get_sitemap_raw(page_size: int = Query(1000), chunk: int = Query(0)):
-    conn = get_db()
-    conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
-    cursor = conn.cursor()
-    
-    # 按照 chunk 索引直接分页，从 0 开始
-    limit = page_size
-    offset = chunk * page_size
-    
-    # 增加 ORDER BY id 确保分页结果不跳变
-    cursor.execute("SELECT id, vod_id, title, category, update_time FROM movies ORDER BY id LIMIT ? OFFSET ?", (limit, offset))
-    rows = cursor.fetchall()
-    results = [dict(r) for r in rows]
-    conn.close()
-    return results
-
 def track_search(q):
     if not q: return
     trends = load_json(TRENDS_FILE, {})
@@ -124,60 +106,102 @@ def track_search(q):
     sorted_trends = dict(sorted(trends.items(), key=lambda item: item[1], reverse=True)[:100])
     save_json(TRENDS_FILE, sorted_trends)
 
+def build_category_filter(t):
+    """根据大类名称返回 SQL WHERE 片段"""
+    if t == "短剧":
+        return "AND (category LIKE '%短剧%' OR title LIKE '%短剧%')"
+    elif t == "电视剧":
+        return "AND (category LIKE '%剧%' OR category LIKE '%连续剧%' OR category LIKE '%电视%') AND category NOT LIKE '%短剧%' AND title NOT LIKE '%短剧%' AND category NOT LIKE '%解说%'"
+    elif t == "动漫":
+        return "AND (category LIKE '%动漫%' OR category LIKE '%动画%' OR category LIKE '%番剧%') AND category NOT LIKE '%解说%'"
+    elif t == "电影":
+        return "AND (category LIKE '%电影%' OR category LIKE '%片%' OR category LIKE '%蓝光%') AND category NOT LIKE '%解说%'"
+    elif t == "综艺":
+        return "AND (category LIKE '%综艺%' OR category LIKE '%晚会%') AND category NOT LIKE '%解说%'"
+    elif t == "其他":
+        return "AND category NOT LIKE '%电影%' AND category NOT LIKE '%片%' AND category NOT LIKE '%剧%' AND category NOT LIKE '%动漫%' AND category NOT LIKE '%综艺%'"
+    else:
+        return None  # 交由调用方用参数化查询处理
+
 @app.get("/api/search")
 def search(q: str = Query(None), t: str = Query(None), class_tag: str = Query(None), pg: int = Query(1)):
-    if t and not q:
+    # 模式 1：关键字搜索 → 多源实时并发 + 本地 SQLite 补充
+    if q:
+        track_search(q)
+        sources = get_active_sources()
+        unique_results = {}
+        # 实时搜索所有活跃源
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(sources))) as executor:
+            futures = [executor.submit(fetch_single_page, eng, keyword=q, pg=pg) for eng in sources]
+            for future in concurrent.futures.as_completed(futures):
+                for item in future.result():
+                    if item['title'] not in unique_results:
+                        unique_results[item['title']] = item
+        # 如果实时结果不足，从本地 SQLite 补充
+        if len(unique_results) < 10:
+            conn = get_db()
+            conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM movies WHERE title LIKE ? ORDER BY update_time DESC LIMIT 30", (f"%{q}%",))
+            for row in cursor.fetchall():
+                item = dict(row)
+                item["episodes"] = json.loads(item["episodes"]) if item["episodes"] else []
+                if item["title"] not in unique_results:
+                    unique_results[item["title"]] = item
+            conn.close()
+        return list(unique_results.values())
+
+    # 模式 2：分类浏览 → SQLite 查询
+    if t:
         conn = get_db()
         conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
         cursor = conn.cursor()
-        
+
         query = "SELECT * FROM movies WHERE 1=1"
         params = []
-        
-        if t == "短剧":
-            query += " AND (category LIKE '%短剧%' OR title LIKE '%短剧%')"
-        elif t == "电视剧":
-            query += " AND (category LIKE '%剧%' OR category LIKE '%电视%') AND category NOT LIKE '%短剧%' AND title NOT LIKE '%短剧%' AND category NOT LIKE '%解说%'"
-        elif t == "动漫":
-            query += " AND (category LIKE '%动漫%' OR category LIKE '%动画%') AND category NOT LIKE '%解说%'"
-        elif t == "电影":
-            query += " AND (category LIKE '%电影%' OR category LIKE '%片%') AND category NOT LIKE '%解说%'"
+
+        cat_filter = build_category_filter(t)
+        if cat_filter:
+            query += f" {cat_filter}"
         else:
             query += " AND category = ?"
             params.append(t)
-            
+
         if class_tag:
             query += " AND category = ?"
             params.append(class_tag)
-            
+
         query += " ORDER BY update_time DESC LIMIT ? OFFSET ?"
         page_size = 36
         params.extend([page_size, (pg - 1) * page_size])
-        
+
         cursor.execute(query, params)
         rows = cursor.fetchall()
-        
+
         results = []
         for row in rows:
             item = dict(row)
             item["source_tip"] = "高清"
             item["episodes"] = json.loads(item["episodes"]) if item["episodes"] else []
             results.append(item)
-            
+
         conn.close()
         return results
 
-    sources = get_active_sources()
-    if q: track_search(q)
-    # 实时搜索逻辑保持不变
-    unique_results = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(sources))) as executor:
-        futures = [executor.submit(fetch_single_page, eng, keyword=q, pg=pg) for eng in sources]
-        for future in concurrent.futures.as_completed(futures):
-            for item in future.result():
-                if item['title'] not in unique_results:
-                    unique_results[item['title']] = item
-    return list(unique_results.values())
+    # 模式 3：无参数 → 返回最新内容
+    conn = get_db()
+    conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM movies ORDER BY update_time DESC LIMIT 30")
+    rows = cursor.fetchall()
+    results = []
+    for row in rows:
+        item = dict(row)
+        item["source_tip"] = "高清"
+        item["episodes"] = json.loads(item["episodes"]) if item["episodes"] else []
+        results.append(item)
+    conn.close()
+    return results
 
 @app.get("/api/categories")
 def get_categories(t: str = Query(...)):
@@ -187,15 +211,9 @@ def get_categories(t: str = Query(...)):
     query = "SELECT DISTINCT category FROM movies WHERE 1=1"
     params = []
     
-    if t == "短剧":
-        query += " AND (category LIKE '%短剧%' OR title LIKE '%短剧%')"
-    elif t == "电视剧":
-        query += " AND (category LIKE '%剧%' OR category LIKE '%电视%') AND category NOT LIKE '%短剧%'"
-    elif t == "动漫":
-        query += " AND (category LIKE '%动漫%' OR category LIKE '%动画%')"
-    elif t == "电影":
-        # 宽泛匹配电影分类，包含蓝光等
-        query += " AND (category LIKE '%电影%' OR category LIKE '%片%' OR category LIKE '%蓝光%')"
+    cat_filter = build_category_filter(t)
+    if cat_filter:
+        query += f" {cat_filter}"
     else:
         query += " AND category LIKE ?"
         params.append(f"%{t}%")
@@ -501,47 +519,6 @@ def get_sitemap_raw(chunk: int = Query(0)):
     results = [dict(r) for r in rows]
     conn.close()
     return results
-
-@app.get("/api/search")
-def search_movies(q: str = Query(None), t: str = Query(None), pg: int = Query(1)):
-    conn = get_db()
-    conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
-    cursor = conn.cursor()
-    
-    page_size = 30
-    offset = (pg - 1) * page_size
-    
-    where_clauses = []
-    params = []
-    
-    if q:
-        where_clauses.append("(title LIKE ? OR description LIKE ?)")
-        params.extend([f"%{q}%", f"%{q}%"])
-    
-    if t:
-        if t == "电影":
-            where_clauses.append("(category LIKE '%电影%' OR category LIKE '%片%' OR category LIKE '%蓝光%') AND category NOT LIKE '%解说%'")
-        elif t == "电视剧":
-            where_clauses.append("(category LIKE '%剧%' OR category LIKE '%连续剧%' OR category LIKE '%电视%') AND category NOT LIKE '%短剧%' AND category NOT LIKE '%解说%'")
-        elif t == "动漫":
-            where_clauses.append("(category LIKE '%动漫%' OR category LIKE '%动画%' OR category LIKE '%番剧%') AND category NOT LIKE '%解说%'")
-        elif t == "综艺":
-            where_clauses.append("(category LIKE '%综艺%' OR category LIKE '%晚会%') AND category NOT LIKE '%解说%'")
-        elif t == "其他":
-            where_clauses.append("category NOT LIKE '%电影%' AND category NOT LIKE '%片%' AND category NOT LIKE '%剧%' AND category NOT LIKE '%动漫%' AND category NOT LIKE '%综艺%'")
-        else:
-            where_clauses.append("category = ?")
-            params.append(t)
-    
-    where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
-    query = f"SELECT * FROM movies {where_sql} ORDER BY update_time DESC LIMIT ? OFFSET ?"
-    params.extend([page_size, offset])
-    
-    cursor.execute(query, tuple(params))
-    items = cursor.fetchall()
-    conn.close()
-    return [dict(i) for i in items]
-
 
 # ==================== 视频代理接口 ====================
 # 解决视频 CDN 防盗链 403 问题

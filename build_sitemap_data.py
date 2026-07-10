@@ -5,12 +5,8 @@ import time
 import os
 import concurrent.futures
 from urllib.parse import quote
-import threading
 
-# 保存路径
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# 不再主要依赖这些 JSON 文件进行查询，但为了兼容性可以保留路径定义
-SAVE_PATH = os.path.join(BASE_DIR, "public", "sitemap_data.json")
 SOURCES_FILE = os.path.join(BASE_DIR, "sources.json")
 
 def log(msg):
