@@ -1,32 +1,86 @@
 [
   {
-    "name": "量子高清",
-    "api": "https://cj.lziapi.com/api.php/provide/vod/from/lzm3u8/at/json/",
-    "tip": "极速",
+    "name": "红牛专线",
+    "api": "https://www.hongniuzy2.com/api.php/provide/vod/from/hnm3u8/at/json/",
+    "tip": "专线",
+    "active": true
+  },
+  {
+    "name": "百度资源",
+    "api": "https://api.apibdzy.com/api.php/provide/vod/at/json/",
+    "tip": "资源多",
+    "active": true
+  },
+  {
+    "name": "樱花资源",
+    "api": "http://m3u8.apiyhzy.com/api.php/provide/vod/at/json/",
+    "tip": "樱花",
+    "active": true
+  },
+  {
+    "name": "豪华资源",
+    "api": "https://hhzyapi.com/api.php/provide/vod/at/json/",
+    "tip": "豪华",
     "active": true
   },
   {
     "name": "虎牙资源",
     "api": "https://www.huyaapi.com/api.php/provide/vod/at/json/",
     "tip": "超清",
-    "active": false
+    "active": true
   },
   {
     "name": "极速资源",
     "api": "https://jszyapi.com/api.php/provide/vod/at/json/",
     "tip": "秒开",
-    "active": false
+    "active": true
   },
   {
-    "name": "百度资源",
-    "api": "https://api.apibdzy.com/api.php/provide/vod/at/json/",
-    "tip": "资源多",
-    "active": false
+    "name": "金鹰资源",
+    "api": "https://jyzyapi.com/api.php/provide/vod/at/json/",
+    "tip": "蓝光",
+    "active": true
   },
   {
-    "name": "红牛专线",
-    "api": "https://www.hongniuzy2.com/api.php/provide/vod/from/hnm3u8/at/json/",
-    "tip": "专线",
+    "name": "量子高清",
+    "api": "https://cj.lziapi.com/api.php/provide/vod/from/lzm3u8/at/json/",
+    "tip": "极速",
+    "active": true
+  },
+  {
+    "name": "牛牛资源",
+    "api": "https://api.niuniuzy.me/api.php/provide/vod/at/json/",
+    "tip": "牛牛",
+    "active": true
+  },
+  {
+    "name": "新浪资源",
+    "api": "https://api.xinlangapi.com/xinlangapi.php/provide/vod/at/json/",
+    "tip": "新浪",
+    "active": true
+  },
+  {
+    "name": "暴风资源",
+    "api": "https://bfzyapi.com/api.php/provide/vod/at/json/",
+    "tip": "强力",
+    "active": true
+  },
+  {
+    "name": "光速资源",
+    "api": "https://api.guangsuapi.com/api.php/provide/vod/at/json/",
+    "tip": "流畅",
+    "active": true
+  },
+  {
+    "name": "最大资源",
+    "api": "http://zuidazy.me/api.php/provide/vod/at/json/",
+    "tip": "源广",
+    "active": true
+  },
+  {
+    "name": "U酷资源",
+    "api": "http://api.ukuapi.com/api.php/provide/vod/at/json/",
+    "tip": "U酷",
     "active": true
   },
   {
@@ -36,46 +90,21 @@
     "active": true
   },
   {
-    "name": "豪华资源",
-    "api": "https://hhzyapi.com/api.php/provide/vod/at/json/",
-    "tip": "豪华",
-    "active": false
+    "name": "闪电资源",
+    "api": "https://sdzyapi.com/api.php/provide/vod/at/json/",
+    "tip": "极快",
+    "active": true
   },
   {
-    "name": "金鹰资源",
-    "api": "https://jyzyapi.com/api.php/provide/vod/at/json/",
-    "tip": "蓝光",
-    "active": false
+    "name": "无尽资源",
+    "api": "https://api.wujinapi.me/api.php/provide/vod/at/json/",
+    "tip": "海量",
+    "active": true
   },
   {
     "name": "非凡资源",
     "api": "http://cj.ffzyapi.com/api.php/provide/vod/at/json/",
     "tip": "非凡",
-    "active": false
-  },
-  {
-    "name": "暴风资源",
-    "api": "https://bfzyapi.com/api.php/provide/vod/at/json/",
-    "tip": "强力",
-    "active": false
-  },
-
-  {
-    "name": "闪电资源",
-    "api": "https://sdzyapi.com/api.php/provide/vod/at/json/",
-    "tip": "极快",
-    "active": false
-  },
-  {
-    "name": "光速资源",
-    "api": "https://api.guangsuapi.com/api.php/provide/vod/at/json/",
-    "tip": "流畅",
-    "active": false
-  },
-  {
-    "name": "无尽资源",
-    "api": "https://api.wujinapi.me/api.php/provide/vod/at/json/",
-    "tip": "源广",
-    "active": false
+    "active": true
   }
 ]
