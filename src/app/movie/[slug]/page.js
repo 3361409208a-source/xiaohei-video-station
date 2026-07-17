@@ -2,8 +2,6 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import MoviePlayer from './MoviePlayer';
 import MovieJsonLd from '@/components/MovieJsonLd';
-import { getDetail } from '@/utils/backupService';
-import { isValidDetailPayload } from '@/utils/searchHelpers';
 import { buildMovieDescription, buildMovieKeywords } from '@/utils/seoHelpers';
 import { buildMoviePath } from '@/utils/movieUrl';
 
@@ -17,45 +15,27 @@ function parseSlug(slug) {
   return { id, titleFromSlug };
 }
 
-function isValidDetail(data) {
-  return isValidDetailPayload(data);
-}
-
-async function fetchMovieDetail(id, src) {
-  let data = null;
-  const srcQuery = src ? `&src=${encodeURIComponent(src)}` : '';
-
+async function fetchMovieMeta(id, titleFromSlug) {
   try {
     const API_URL = process.env.NEXT_PUBLIC_API_URL;
     if (API_URL) {
-      const response = await fetch(`${API_URL}/api/detail?id=${id}${srcQuery}`, {
-        next: { revalidate: 86400 },
+      const response = await fetch(`${API_URL}/api/detail/meta?id=${id}`, {
+        next: { revalidate: 3600 },
         signal: AbortSignal.timeout(5000),
       });
-
       if (response.ok) {
         const json = await response.json();
-        if (isValidDetail(json)) data = json;
+        if (json?.title) return json;
       }
     }
   } catch (error) {
-    console.warn('Failed to fetch metadata from backend, trying backup service:', error.message);
+    console.warn('Failed to fetch movie meta from backend:', error.message);
   }
 
-  if (!data && src) {
-    try {
-      const backup = await getDetail(id, src);
-      if (isValidDetail(backup)) data = backup;
-    } catch (error) {
-      console.error('Backup service failed to fetch metadata:', error);
-    }
+  if (titleFromSlug) {
+    return { vod_id: id, title: titleFromSlug };
   }
-
-  return data;
-}
-
-function resolvePlaybackSrc(requestedSrc, data) {
-  return requestedSrc || data?.source_name || data?.source || '';
+  return null;
 }
 
 export default async function MoviePage({ params, searchParams }) {
@@ -69,18 +49,18 @@ export default async function MoviePage({ params, searchParams }) {
     notFound();
   }
 
-  const data = await fetchMovieDetail(id, requestedSrc || undefined);
-  if (!data) {
+  const meta = await fetchMovieMeta(id, titleFromSlug);
+  if (!meta?.title) {
     notFound();
   }
 
-  const playbackSrc = resolvePlaybackSrc(requestedSrc, data);
-  const canonicalPath = buildMoviePath(data.title, data.vod_id || id);
+  const displayTitle = meta.title;
+  const canonicalPath = buildMoviePath(displayTitle, meta.vod_id || id);
   const pageUrl = `${BASE_URL}${canonicalPath}`;
 
   return (
     <>
-      <MovieJsonLd data={data} pageUrl={pageUrl} />
+      <MovieJsonLd data={meta} pageUrl={pageUrl} />
       <Suspense
         fallback={
           <div
@@ -101,9 +81,9 @@ export default async function MoviePage({ params, searchParams }) {
         }
       >
         <MoviePlayer
-          id={data.vod_id || id}
-          title={data.title || titleFromSlug}
-          src={playbackSrc}
+          id={meta.vod_id || id}
+          title={displayTitle}
+          src={requestedSrc}
           initialUrl={resolvedSearchParams.url}
         />
       </Suspense>
@@ -115,27 +95,26 @@ export async function generateMetadata({ params, searchParams }) {
   const resolvedParams = await params;
   const resolvedSearchParams = await searchParams;
 
-  const { id } = parseSlug(resolvedParams.slug);
-  const requestedSrc = resolvedSearchParams.src || '';
+  const { id, titleFromSlug } = parseSlug(resolvedParams.slug);
 
   if (!id) {
     notFound();
   }
 
-  const data = await fetchMovieDetail(id, requestedSrc || undefined);
-  if (!data) {
+  const meta = await fetchMovieMeta(id, titleFromSlug);
+  if (!meta?.title) {
     notFound();
   }
 
-  const title = data.title;
-  const canonicalPath = buildMoviePath(title, data.vod_id || id);
+  const title = meta.title;
+  const canonicalPath = buildMoviePath(title, meta.vod_id || id);
   const pageUrl = `${BASE_URL}${canonicalPath}`;
-  const description = buildMovieDescription(data);
+  const description = buildMovieDescription(meta);
 
   return {
     title: `${title}在线免费观看 - 小黑搜影`,
     description,
-    keywords: buildMovieKeywords(data),
+    keywords: buildMovieKeywords(meta),
     alternates: {
       canonical: pageUrl,
     },
@@ -145,7 +124,7 @@ export async function generateMetadata({ params, searchParams }) {
       type: 'video.movie',
       siteName: '小黑搜影',
       url: pageUrl,
-      images: data.poster ? [{ url: data.poster }] : [],
+      images: meta.poster ? [{ url: meta.poster }] : [],
     },
   };
 }

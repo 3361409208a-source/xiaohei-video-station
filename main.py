@@ -13,6 +13,7 @@ import io
 import time
 import concurrent.futures
 import subprocess
+from datetime import datetime, timedelta
 from typing import Optional
 from db import get_db, init_db
 
@@ -121,12 +122,46 @@ def verify_admin(x_admin_token: str = Header(None)):
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 
+# 直连上游 API，避免本地系统代理(如 127.0.0.1:7897)未启动时请求失败
+_http = requests.Session()
+_http.trust_env = False
+
+CACHE_STALE_DAYS = 3
+
+def _parse_episodes(raw):
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return raw
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
+            return parsed
+    except (TypeError, json.JSONDecodeError):
+        pass
+    return []
+
+def _is_stale_cache(item):
+    episodes = _parse_episodes(item.get("episodes"))
+    if not episodes:
+        return True
+
+    update_time = (item.get("update_time") or "").strip()
+    if not update_time:
+        return True
+
+    try:
+        updated_at = datetime.strptime(update_time[:19], "%Y-%m-%d %H:%M:%S")
+        return datetime.now() - updated_at > timedelta(days=CACHE_STALE_DAYS)
+    except ValueError:
+        return True
+
 def fetch_single_page(engine, type_id=None, keyword=None, pg=1):
     try:
         api_url = f"{engine['api']}?ac=detail&pg={pg}"
         if type_id: api_url += f"&t={type_id}"
         if keyword: api_url += f"&wd={urllib.parse.quote(keyword)}"
-        res = requests.get(api_url, timeout=8, headers=HEADERS)
+        res = _http.get(api_url, timeout=8, headers=HEADERS)
         res.encoding = 'utf-8'
         data = res.json()
         results = []
@@ -370,37 +405,34 @@ def get_detail(id: str, src: Optional[str] = Query(None)):
         
     actual_vod_id = id
     actual_src = decoded_src
-    
-    # 修复 ID 空间冲突逻辑：
-    # 1. 优先尝试按 (vod_id + source) 精准匹配（针对实时搜索结果点进来的情况）
+    row = None
+
+    # 1. 带来源时按 (vod_id + source) 精准匹配
     if decoded_src:
-        cursor.execute("SELECT vod_id, source_name FROM movies WHERE vod_id = ? AND source_name = ?", (id, decoded_src))
+        cursor.execute(
+            "SELECT vod_id, source_name FROM movies WHERE vod_id = ? AND source_name = ?",
+            (id, decoded_src),
+        )
         row = cursor.fetchone()
-    else:
-        row = None
-    
-    if not row:
-        # 2. 如果没找到，再看它是否是数据库的主键 id（针对首页推荐位点进来的情况）
-        cursor.execute("SELECT vod_id, source_name FROM movies WHERE id = ?", (id,))
-        row = cursor.fetchone()
-        # 增加校验：如果传了明确的来源但与数据库查出的不符，说明 ID 冲突，应忽略此记录
-        if row and decoded_src and row[1] != decoded_src:
-            row = None
-            
-        if row:
-            actual_vod_id = str(row[0])
-            actual_src = row[1]
 
     if not row and not decoded_src:
-        # 3. SEO canonical 无 src：取该 vod_id 最新更新的源
+        # 2. SEO 主链无 src：优先按 vod_id 匹配（/movie/{title}-{vodId}）
         cursor.execute(
             "SELECT vod_id, source_name FROM movies WHERE vod_id = ? ORDER BY update_time DESC, id ASC LIMIT 1",
             (id,),
         )
         row = cursor.fetchone()
-        if row:
-            actual_vod_id = str(row[0])
-            actual_src = row[1]
+
+    if not row:
+        # 3. 兼容首页等传入数据库主键 id 的场景
+        cursor.execute("SELECT vod_id, source_name FROM movies WHERE id = ?", (id,))
+        row = cursor.fetchone()
+        if row and decoded_src and row[1] != decoded_src:
+            row = None
+
+    if row:
+        actual_vod_id = str(row[0])
+        actual_src = row[1] if not decoded_src else decoded_src
     
     conn.close()
 
@@ -413,7 +445,7 @@ def get_detail(id: str, src: Optional[str] = Query(None)):
     # 优先从实时 API 获取（保证链接是最新的）
     if engine:
         try:
-            res = requests.get(f"{engine['api']}?ac=detail&ids={actual_vod_id}", timeout=8, headers=HEADERS).json()
+            res = _http.get(f"{engine['api']}?ac=detail&ids={actual_vod_id}", timeout=8, headers=HEADERS).json()
             if res.get("list"):
                 item = res["list"][0]
                 play_url = item.get("vod_play_url", "")
@@ -455,31 +487,42 @@ def get_detail(id: str, src: Optional[str] = Query(None)):
                 }
         except Exception as e:
             print(f"[Detail] 实时拉取失败 vod_id={actual_vod_id} src={actual_src}: {e}")
-    
+
+    return None
+
+@app.get("/api/detail/meta")
+def get_detail_meta(id: str):
+    """展示/SEO 用：只读本地库元数据，不含播放链接"""
     conn = get_db()
     conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM movies WHERE vod_id = ?", (actual_vod_id,))
+
+    cursor.execute(
+        "SELECT vod_id, title, poster, category, year, description, source_name FROM movies WHERE vod_id = ? ORDER BY update_time DESC, id ASC LIMIT 1",
+        (id,),
+    )
     row = cursor.fetchone()
+    if not row:
+        cursor.execute(
+            "SELECT vod_id, title, poster, category, year, description, source_name FROM movies WHERE id = ? LIMIT 1",
+            (id,),
+        )
+        row = cursor.fetchone()
     conn.close()
-    
-    if row:
-        item = dict(row)
-        return {
-            "vod_id": item.get("vod_id", actual_vod_id),
-            "title": item["title"],
-            "poster": item.get("poster", ""),
-            "category": item.get("category", ""),
-            "description": item.get("description", ""),
-            "episodes": json.loads(item["episodes"]) if item.get("episodes") else [],
-            "year": item.get("year", ""),
-            "area": "",
-            "actor": "",
-            "remark": "",
-            "source_name": item.get("source_name", actual_src),
-            "_from_cache": True  # 标记此为缓存数据，链接可能已过期
-        }
-    return None
+
+    if not row:
+        return None
+
+    item = dict(row)
+    return {
+        "vod_id": item.get("vod_id", id),
+        "title": item.get("title", ""),
+        "poster": item.get("poster", ""),
+        "category": item.get("category", ""),
+        "year": item.get("year", ""),
+        "description": item.get("description", ""),
+        "source_name": item.get("source_name", ""),
+    }
 
 # --- 管理接口 ---
 
@@ -572,7 +615,7 @@ def test_source(data: dict = Body(...), x_admin_token: str = Header(None)):
     try:
         # 尝试获取第一页数据，测试连通性
         test_url = f"{api_url}?ac=list&pg=1"
-        res = requests.get(test_url, timeout=10, headers=HEADERS)
+        res = _http.get(test_url, timeout=10, headers=HEADERS)
         latency = round((time.time() - start_time) * 1000, 2)
         
         if res.status_code == 200:
@@ -723,7 +766,7 @@ def video_proxy(request: Request, url: str = Query(...)):
     proxy_base = f"{base}/api/proxy"
 
     try:
-        resp = requests.get(url, headers=PROXY_HEADERS, timeout=15, stream=True)
+        resp = _http.get(url, headers=PROXY_HEADERS, timeout=15, stream=True)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"上游请求失败: {e}")
 

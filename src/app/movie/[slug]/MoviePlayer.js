@@ -5,269 +5,225 @@ import Recommendations from '@/components/Recommendations';
 import AdSlot from '@/components/AdSlot';
 import NoticeBar from '@/components/NoticeBar';
 import { resolveAdsConfig } from '@/utils/resolveAdsConfig';
+import { searchDedupKey } from '@/utils/searchHelpers';
 import styles from './movie-player.module.css';
 
 export default function MoviePlayer({ id, title, src, initialUrl }) {
   const [detail, setDetail] = useState(null);
-  const [currentUrl, setCurrentUrl] = useState(initialUrl);
+  const [currentUrl, setCurrentUrl] = useState('');
   const [currentName, setCurrentName] = useState('');
-  const [altSources, setAltSources] = useState([]);
-  const [isSearchingAlt, setIsSearchingAlt] = useState(false);
+  const [liveSources, setLiveSources] = useState([]);
+  const [loadingSources, setLoadingSources] = useState(true);
+  const [selectingSource, setSelectingSource] = useState(false);
+  const [activeSourceKey, setActiveSourceKey] = useState('');
   const [showNotice, setShowNotice] = useState(true);
-  const [attemptedSources, setAttemptedSources] = useState([src]);
   const playerRef = useRef(null);
   const dpInstance = useRef(null);
+  const handleSelectSourceRef = useRef(null);
   const [isDescCollapsed, setIsDescCollapsed] = useState(true);
   const [config, setConfig] = useState({ site_name: '小黑搜影', footer: '', ads: { enabled: false }, private_traffic: {} });
+  const configSiteNameRef = useRef('小黑搜影');
+  configSiteNameRef.current = config.site_name;
   const adsConfig = resolveAdsConfig(config.ads, config.private_traffic);
 
-  // 当换源或换集时，重置已尝试的源
-  useEffect(() => {
-    setAttemptedSources([src]);
-  }, [src, currentName]);
-
-  // 从 localStorage 初始化公告显示状态
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const hideNotice = localStorage.getItem('hide_notice_bar') === 'true';
-      if (hideNotice) {
-        setShowNotice(false);
-      }
+      if (hideNotice) setShowNotice(false);
     }
   }, []);
-
-  // 过滤 HTML 标签的工具函数
-  const stripHtml = (html) => {
-    if (!html) return "";
-    return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ');
-  };
 
   useEffect(() => {
     fetch('/api/config')
-      .then(res => res.json())
-      .then(data => setConfig(data))
-      .catch(err => console.error("Config load failed", err));
+      .then((res) => res.json())
+      .then((data) => setConfig(data))
+      .catch((err) => console.error('Config load failed', err));
   }, []);
 
-  const handleSwitchSource = useCallback(async (alt) => {
+  const stripHtml = (html) => {
+    if (!html) return '';
+    return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ');
+  };
+
+  const handleSelectSource = useCallback(async (item) => {
+    const sName = item.source_name || item.source;
+    const vodId = item.vod_id || item.id;
+    if (!sName || !vodId) return;
+
+    setSelectingSource(true);
+    setActiveSourceKey(searchDedupKey(item));
+
     try {
-      const sName = alt.source_name || alt.source;
-      const res = await fetch(`/api/detail?id=${alt.vod_id || alt.id}&src=${encodeURIComponent(sName)}`);
+      const res = await fetch(`/api/detail?id=${vodId}&src=${encodeURIComponent(sName)}`);
       const data = await res.json();
-      // 尝试匹配相同集名，或者播第一集
-      const targetEp = data.episodes.find(e => e.name === currentName) || data.episodes[0];
-      if (targetEp) {
-        setCurrentUrl(targetEp.url);
-        // 更新当前页面的一些信息
-        setDetail(prev => ({ ...prev, episodes: data.episodes }));
+
+      if (!data || data.error || !data.episodes?.length) {
+        alert('该线路暂时不可用，请换其他源');
+        setActiveSourceKey('');
+        return;
       }
+
+      setDetail(data);
+      document.title = `${data.title}在线免费观看 - ${configSiteNameRef.current}`;
+
+      const matched = initialUrl
+        ? data.episodes.find((episode) => episode.url === initialUrl)
+        : null;
+      const target = matched || data.episodes[0];
+      setCurrentUrl(target.url);
+      setCurrentName(target.name);
     } catch (err) {
-      console.error("Switch source failed", err);
+      console.error('Select source failed', err);
+      alert('加载线路失败，请换其他源');
+      setActiveSourceKey('');
+    } finally {
+      setSelectingSource(false);
     }
-  }, [currentName]);
+  }, [initialUrl]);
 
-  // 当主资源加载失败时，自动寻找替代资源
-  const findAlternativeSources = useCallback(async (fallbackTitle, autoSwitch = true) => {
-    const searchKeyword = detail?.title || fallbackTitle;
-    if (!searchKeyword || isSearchingAlt) return;
-
-    setIsSearchingAlt(true);
-    try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(searchKeyword)}`);
-      const data = await res.json();
-      const others = data.filter(item => {
-        const sName = item.source_name || item.source;
-        return sName !== src;
-      });
-      setAltSources(others);
-
-      if (autoSwitch && others.length > 0) {
-        const nextSource = others.find(item => {
-          const sName = item.source_name || item.source;
-          return !attemptedSources.includes(sName);
-        });
-
-        if (nextSource) {
-          const nextSourceName = nextSource.source_name || nextSource.source;
-          console.log(`自动切换至替代源: ${nextSourceName}`);
-          setAttemptedSources(prev => [...prev, nextSourceName]);
-          await handleSwitchSource(nextSource);
-        } else {
-          console.log("所有可用替代源均已尝试过播放，停止自动切换。");
-        }
-      }
-    } catch (err) {
-      console.error("Failed to find alt sources", err);
-    }
-    setIsSearchingAlt(false);
-  }, [detail?.title, src, isSearchingAlt, attemptedSources, handleSwitchSource]);
+  handleSelectSourceRef.current = handleSelectSource;
 
   useEffect(() => {
-    if (!id) return;
-
-    const fetchDetail = async () => {
-      try {
-        const srcQuery = src ? `&src=${encodeURIComponent(src)}` : '';
-        const res = await fetch(`/api/detail?id=${id}${srcQuery}`);
-        const data = await res.json();
-
-        // API 返回 null 表示数据库和实时源都找不到该资源
-        if (!data) {
-          console.warn('Detail not found, searching alternative sources...');
-          findAlternativeSources(title, true); // 使用从 URL 提取的标题搜索
-          return;
-        }
-
-        setDetail(data);
-        if (data.source_name) {
-          setAttemptedSources((prev) => (prev.includes(data.source_name) ? prev : [...prev, data.source_name]));
-        }
-
-        // 如果返回的是缓存数据且链接已经很久（比如2022），大概率无法播放，主动搜索替代源，但不自动切换
-        if (data._from_cache) {
-          console.log('Detect cache data, searching for fresh sources...');
-          findAlternativeSources(data.title, false);
-        }
-
-        if (data.title) {
-          document.title = `${data.title}在线免费观看 - ${config.site_name}`;
-        }
-
-        if (!currentUrl && data.episodes && data.episodes.length > 0) {
-          setCurrentUrl(data.episodes[0].url);
-          setCurrentName(data.episodes[0].name);
-        } else if (data.episodes) {
-          const current = data.episodes.find(e => e.url === initialUrl);
-          if (current) setCurrentName(current.name);
-        }
-      } catch (e) {
-        console.error('Fetch detail failed:', e);
-        // 网络请求报错时尝试用标题搜索
-        if (title) findAlternativeSources(title, true);
-      }
-    };
-
-    fetchDetail();
-  }, [id, src, initialUrl, config.site_name, title, findAlternativeSources, currentUrl]);
+    setDetail(null);
+    setCurrentUrl('');
+    setCurrentName('');
+    setLiveSources([]);
+    setActiveSourceKey('');
+  }, [id, title]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && currentUrl) {
-      Promise.all([
-        import('hls.js'),
-        import('dplayer')
-      ]).then(([HlsModule, DPlayerModule]) => {
-        const Hls = HlsModule.default;
-        const DPlayer = DPlayerModule.default;
+    if (!title) return undefined;
 
-        // 智能播放：先直连，失败后再走 Next /api/proxy（带 SSRF 防护）
-        let triedProxy = false;
+    let cancelled = false;
+    setLoadingSources(true);
 
-        const buildHls = (url) => {
-          const hls = new Hls();
-          hls.loadSource(url);
+    fetch(`/api/search?q=${encodeURIComponent(title)}&_ts=${Date.now()}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        setLiveSources(list);
+        document.title = `${title} - 选择播放源 - ${configSiteNameRef.current}`;
 
-          hls.on(Hls.Events.ERROR, (event, data) => {
-            if (!data.fatal) return;
-
-            if (!triedProxy) {
-              triedProxy = true;
-              // 始终走同源 Next 代理，避免打到无 SSRF 校验的 FastAPI /api/proxy
-              const proxiedUrl = `/api/proxy?url=${encodeURIComponent(currentUrl)}`;
-              console.log(`直连失败 (${data.details})，切换代理: ${proxiedUrl}`);
-              hls.destroy();
-              const proxyHls = buildHls(proxiedUrl);
-              proxyHls.attachMedia(dpInstance.current?.video || hls.media);
-              if (dpInstance.current) dpInstance.current.hls = proxyHls;
-            } else {
-              console.log('代理也失败，正在搜索替代资源...');
-              hls.destroy();
-              findAlternativeSources(detail?.title || title, true);
-            }
-          });
-
-          return hls;
-        };
-
-        if (dpInstance.current) {
-          // 切集：直接切换原始 URL，失败会触发上面的错误处理
-          dpInstance.current.switchVideo({ url: currentUrl, type: 'hls' });
-          dpInstance.current.play();
-        } else {
-          dpInstance.current = new DPlayer({
-            container: playerRef.current,
-            autoplay: true,
-            theme: '#ec2d7a',
-            video: { url: currentUrl, type: 'hls' },
-            customType: {
-              hls: function (video, player) {
-                if (Hls.isSupported()) {
-                  const hls = buildHls(currentUrl);
-                  hls.attachMedia(video);
-                  player.hls = hls;
-                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                  // Safari 原生 HLS
-                  video.src = currentUrl;
-                  video.addEventListener('error', () => findAlternativeSources(detail?.title || title, true));
-                }
-              },
-            },
-          });
-
-          // DPlayer 原生错误事件（兜底）
-          dpInstance.current.on('error', () => {
-            if (!triedProxy) findAlternativeSources(detail?.title || title, true);
-          });
+        if (src && list.length) {
+          const match = list.find((item) => (item.source_name || item.source) === src);
+          if (match) handleSelectSourceRef.current?.(match);
         }
+      })
+      .catch((err) => console.error('Live search failed', err))
+      .finally(() => {
+        if (!cancelled) setLoadingSources(false);
       });
-    }
 
     return () => {
+      cancelled = true;
+    };
+  }, [title, src]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !currentUrl) return undefined;
+
+    let disposed = false;
+
+    Promise.all([import('hls.js'), import('dplayer')]).then(([HlsModule, DPlayerModule]) => {
+      if (disposed) return;
+
+      const Hls = HlsModule.default;
+      const DPlayer = DPlayerModule.default;
+      let triedProxy = false;
+
+      const onPlayError = () => {
+        alert('当前线路播放失败，请换其他源');
+      };
+
+      const buildHls = (url) => {
+        const hls = new Hls();
+        hls.loadSource(url);
+
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (!data.fatal) return;
+
+          if (!triedProxy) {
+            triedProxy = true;
+            const proxiedUrl = `/api/proxy?url=${encodeURIComponent(currentUrl)}`;
+            hls.destroy();
+            const proxyHls = buildHls(proxiedUrl);
+            proxyHls.attachMedia(dpInstance.current?.video || hls.media);
+            if (dpInstance.current) dpInstance.current.hls = proxyHls;
+          } else {
+            hls.destroy();
+            onPlayError();
+          }
+        });
+
+        return hls;
+      };
+
+      if (dpInstance.current) {
+        dpInstance.current.switchVideo({ url: currentUrl, type: 'hls' });
+        dpInstance.current.play();
+      } else {
+        dpInstance.current = new DPlayer({
+          container: playerRef.current,
+          autoplay: true,
+          theme: '#ec2d7a',
+          video: { url: currentUrl, type: 'hls' },
+          customType: {
+            hls(video, player) {
+              if (Hls.isSupported()) {
+                const hls = buildHls(currentUrl);
+                hls.attachMedia(video);
+                player.hls = hls;
+              } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = currentUrl;
+                video.addEventListener('error', onPlayError);
+              }
+            },
+          },
+        });
+
+        dpInstance.current.on('error', onPlayError);
+      }
+    });
+
+    return () => {
+      disposed = true;
       if (dpInstance.current) {
         dpInstance.current.destroy();
         dpInstance.current = null;
       }
     };
-  }, [currentUrl, findAlternativeSources]);
+  }, [currentUrl]);
 
-
-
-
-
-
-
-  // 摸鱼模式（画中画）
   const toggleMoyu = () => {
-    if (dpInstance.current && dpInstance.current.video) {
+    if (dpInstance.current?.video) {
       if (document.pictureInPictureElement) {
         document.exitPictureInPicture();
       } else {
-        dpInstance.current.video.requestPictureInPicture().catch(err => {
-          console.error("Moyu failed", err);
-          alert("当前浏览器或视频源不支持摸鱼模式哦~");
+        dpInstance.current.video.requestPictureInPicture().catch(() => {
+          alert('当前浏览器或视频源不支持摸鱼模式哦~');
         });
       }
     }
   };
 
+  const displayTitle = detail?.title || title;
+  const placeholderText = loadingSources
+    ? '正在实时搜索可用线路...'
+    : selectingSource
+      ? '正在加载所选线路...'
+      : '请先在上方选择播放源';
+
   return (
-    <div className="page-wrapper" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', overflowX: 'hidden', background: '#000' }}>
-      <header className="site-header" style={{ background: '#111' }}>
-        <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <div className={styles.headerInner}>
           <Link href="/" className="logo-area">
             <img src="/logo.png" alt="logo" className="logo-img" />
             <div className="logo-text">小黑<span>搜影</span></div>
           </Link>
-
-          <div className={styles.titleBar}>
-            {detail?.title ? detail.title : (
-              <>
-                <img src="/logo.gif" alt="loading" className={styles.loadingIcon} />
-                <span>正在加载...</span>
-              </>
-            )}
-          </div>
-
-          <Link href="/" className={styles.backLink}>返回搜索</Link>
+          <div className={styles.titleBar}>{displayTitle}</div>
+          <Link href="/" className={styles.backLink}>← 返回</Link>
         </div>
       </header>
 
@@ -282,99 +238,154 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
         }}
       />
 
-      {detail?._from_cache && (
-        <div className={styles.cacheWarn}>
-          ⚠️ 检测到该线路记录较旧可能无法播放，系统正在为您寻找最新播放源...
-        </div>
-      )}
-
-      <div className={`play-layout ${styles.playLayout}`}>
-        <div className="player-main">
-          <div ref={playerRef} className={styles.playerBox}></div>
-          <AdSlot slotId="player_below" adsConfig={adsConfig} />
-          {detail && (
-            <div className={`movie-info-card ${styles.infoCard}`}>
-              <div className={styles.infoHead}>
-                <h1 className={styles.infoTitle}>{detail.title}</h1>
-                <div className={styles.infoActions}>
-                  <button onClick={toggleMoyu} className={styles.moyuBtn}>
-                    <span>🐟</span> 摸鱼模式
-                  </button>
-                  {detail.remark && <span className={styles.remark}>{detail.remark}</span>}
-                </div>
-              </div>
-
-              <div className={styles.metaRow}>
-                {detail.year && <span>{detail.year}</span>}
-                {detail.area && <span>{detail.area}</span>}
-                {detail.category && <span>{detail.category}</span>}
-              </div>
-
-              <div className={styles.descBlock}>
-                {detail.actor && <p className={styles.actorLine}><strong>主演：</strong>{detail.actor}</p>}
-
-                <div className={styles.descDivider}>
-                  <div className={`${styles.descText} ${isDescCollapsed ? styles.descCollapsed : ''}`}>
-                    <strong>简介：</strong>{stripHtml(detail.description) || '暂无简介'}
-                  </div>
-                  <div
-                    onClick={() => setIsDescCollapsed(!isDescCollapsed)}
-                    className={styles.descToggle}
-                  >
-                    {isDescCollapsed ? '展开详情 ▾' : '收起详情 ▴'}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="episode-sidebar">
-          <AdSlot slotId="player_sidebar" adsConfig={adsConfig} />
-          {altSources.length > 0 && (
-            <div className={styles.altBox}>
-              <div className={styles.altTitle}>🌚 发现可用替代路线：</div>
-              <div className={styles.altBtns}>
-                {altSources.map(alt => (
-                  <button
-                    key={alt.id}
-                    onClick={() => handleSwitchSource(alt)}
-                    className={styles.altBtn}
-                  >
-                    切换至：{alt.source_name} ({alt.source_tip})
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="sidebar-title">选集播放</div>
-          <div className={`ep-grid ${detail?.episodes?.length > 20 ? 'scroll-mode' : ''}`}>
-            {detail?.episodes?.map((ep) => (
-              <div
-                key={ep.url}
-                className={`ep-card ${currentUrl === ep.url ? 'active' : ''}`}
-                onClick={() => {
-                  setCurrentUrl(ep.url);
-                  setCurrentName(ep.name);
-                }}
-              >
-                {ep.name}
-              </div>
-            ))}
+      <main className={styles.main}>
+        <div className={styles.pageHead}>
+          <div>
+            <h1 className={styles.pageTitle}>{displayTitle}</h1>
+            <p className={styles.pageHint}>
+              {loadingSources ? '正在搜索各平台实时线路...' : '选择一条线路后即可开始播放'}
+            </p>
           </div>
-          {detail && (
-            <Recommendations
-              category={detail.category}
-              currentId={detail.vod_id || id}
-            />
+          {!loadingSources && liveSources.length > 0 && (
+            <span className={styles.sourceBadge}>{liveSources.length} 条线路</span>
           )}
         </div>
-      </div>
 
-      <footer className="site-footer">
-        <div className="container">
-          {config.footer || `© 2026 ${config.site_name}`}
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>
+            选择播放源
+            <span>实时搜索，点击即加载</span>
+          </h2>
+          <div className={styles.sourceGrid}>
+            {loadingSources && (
+              <div className={styles.sourceHint}>搜索中，请稍候...</div>
+            )}
+            {!loadingSources && liveSources.length === 0 && (
+              <div className={styles.sourceHint}>未找到可用线路，请返回首页搜索其他关键词</div>
+            )}
+            {liveSources.map((item) => {
+              const key = searchDedupKey(item);
+              const sName = item.source_name || item.source;
+              const isActive = activeSourceKey === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handleSelectSource(item)}
+                  disabled={selectingSource}
+                  className={`${styles.sourceBtn} ${isActive ? styles.sourceBtnActive : ''}`}
+                >
+                  <span className={styles.sourceName}>{sName}</span>
+                  <span className={styles.sourceTip}>{item.source_tip || item.category || '高清'}</span>
+                  {item.remark && <span className={styles.sourceRemark}>{item.remark}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <div className={styles.bodyGrid}>
+          <div className={styles.primary}>
+            <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>
+                播放器
+                {currentName && <span>当前：{currentName}</span>}
+              </h2>
+              {!currentUrl ? (
+                <div className={styles.playerPlaceholder}>
+                  <span className={styles.placeholderIcon}>▶</span>
+                  <span>{placeholderText}</span>
+                </div>
+              ) : (
+                <div ref={playerRef} className={styles.playerBox} />
+              )}
+            </section>
+
+            {detail?.episodes?.length > 0 && (
+              <section className={`${styles.section} ${styles.episodePanel}`}>
+                <h2 className={styles.sectionTitle}>选集播放</h2>
+                <div
+                  className={`${styles.epGrid} ${detail.episodes.length > 20 ? styles.epGridScroll : ''}`}
+                >
+                  {detail.episodes.map((ep) => (
+                    <button
+                      key={ep.url}
+                      type="button"
+                      className={`${styles.epCard} ${currentUrl === ep.url ? styles.epCardActive : ''}`}
+                      onClick={() => {
+                        setCurrentUrl(ep.url);
+                        setCurrentName(ep.name);
+                      }}
+                    >
+                      {ep.name}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {detail && (
+              <section className={styles.infoCard}>
+                <div className={styles.infoHead}>
+                  <h2 className={styles.infoTitle}>{detail.title}</h2>
+                  <div className={styles.infoActions}>
+                    {currentUrl && (
+                      <button type="button" onClick={toggleMoyu} className={styles.moyuBtn}>
+                        <span>🐟</span> 摸鱼模式
+                      </button>
+                    )}
+                    {detail.remark && <span className={styles.remark}>{detail.remark}</span>}
+                  </div>
+                </div>
+
+                <div className={styles.metaRow}>
+                  {detail.year && <span className={styles.metaTag}>{detail.year}</span>}
+                  {detail.area && <span className={styles.metaTag}>{detail.area}</span>}
+                  {detail.category && <span className={styles.metaTag}>{detail.category}</span>}
+                  {detail.source_name && (
+                    <span className={`${styles.metaTag} ${styles.metaTagActive}`}>{detail.source_name}</span>
+                  )}
+                </div>
+
+                <div className={styles.descBlock}>
+                  {detail.actor && (
+                    <p className={styles.actorLine}><strong>主演：</strong>{detail.actor}</p>
+                  )}
+                  <div className={styles.descDivider}>
+                    <div className={`${styles.descText} ${isDescCollapsed ? styles.descCollapsed : ''}`}>
+                      <strong>简介：</strong>{stripHtml(detail.description) || '暂无简介'}
+                    </div>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setIsDescCollapsed(!isDescCollapsed)}
+                      onKeyDown={(e) => e.key === 'Enter' && setIsDescCollapsed(!isDescCollapsed)}
+                      className={styles.descToggle}
+                    >
+                      {isDescCollapsed ? '展开详情 ▾' : '收起详情 ▴'}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            <AdSlot slotId="player_below" adsConfig={adsConfig} />
+          </div>
+
+          <aside className={styles.aside}>
+            <AdSlot slotId="player_sidebar" adsConfig={adsConfig} />
+            {detail && (
+              <Recommendations
+                category={detail.category}
+                currentId={detail.vod_id || id}
+              />
+            )}
+          </aside>
         </div>
+      </main>
+
+      <footer className={styles.footer}>
+        {config.footer || `© 2026 ${config.site_name}`}
       </footer>
     </div>
   );

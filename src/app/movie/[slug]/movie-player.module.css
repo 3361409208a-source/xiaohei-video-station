@@ -1,86 +1,319 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  color: #ddd;
+}
+
+.header {
+  background: #111;
+  border-bottom: 1px solid #222;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.headerInner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .titleBar {
-  font-size: 0.9rem;
-  color: #888;
   flex: 1;
+  font-size: 0.95rem;
+  color: #eee;
   text-align: center;
-  padding: 0 15px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.loadingIcon {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
 }
 
 .backLink {
   color: #ccc;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   white-space: nowrap;
   flex-shrink: 0;
+  text-decoration: none;
 }
 
-.cacheWarn {
-  background: rgba(236, 45, 122, 0.1);
-  padding: 10px;
-  color: #ec2d7a;
-  font-size: 0.85rem;
-  text-align: center;
-  border-bottom: 1px solid rgba(236, 45, 122, 0.2);
+.backLink:hover {
+  color: #fff;
 }
 
-.playLayout {
+.main {
   flex: 1;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
-.playerBox {
+.pageHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 1.35rem;
+  color: #fff;
+  line-height: 1.3;
+}
+
+.pageHint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.sourceBadge {
+  background: rgba(236, 45, 122, 0.15);
+  color: #ec2d7a;
+  border: 1px solid rgba(236, 45, 122, 0.35);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.section {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  margin: 0 0 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ec2d7a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sectionTitle span {
+  color: #666;
+  font-weight: 400;
+  font-size: 0.8rem;
+}
+
+.sourceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.sourceGrid::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sourceGrid::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+.sourceHint {
+  color: #888;
+  font-size: 0.85rem;
+  padding: 24px 8px;
+  text-align: center;
+  grid-column: 1 / -1;
+}
+
+.sourceBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 72px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #ddd;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.sourceBtn:hover:not(:disabled) {
+  border-color: #ec2d7a;
+  background: #222;
+}
+
+.sourceBtn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.sourceBtnActive {
+  border-color: #ec2d7a;
+  background: rgba(236, 45, 122, 0.12);
+  box-shadow: 0 0 0 1px rgba(236, 45, 122, 0.25);
+}
+
+.sourceName {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.3;
+}
+
+.sourceTip {
+  font-size: 0.72rem;
+  color: #999;
+}
+
+.sourceRemark {
+  font-size: 0.72rem;
+  color: #ec2d7a;
+}
+
+.bodyGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  align-items: start;
+}
+
+.primary {
+  min-width: 0;
+}
+
+.aside {
+  position: sticky;
+  top: 72px;
+}
+
+.playerBox,
+.playerPlaceholder {
   width: 100%;
   aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+}
+
+.playerPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(180deg, #141414 0%, #0a0a0a 100%);
+  border: 1px dashed #333;
+  color: #888;
+  font-size: 0.92rem;
+  text-align: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.placeholderIcon {
+  font-size: 2rem;
+  opacity: 0.5;
+}
+
+.episodePanel {
+  margin-top: 0;
+}
+
+.epGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.epGridScroll {
+  max-height: 320px;
+}
+
+.epCard {
+  background: #1a1a1a;
+  color: #ccc;
+  border: 1px solid #333;
+  padding: 10px 6px;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.epCard:hover {
+  border-color: #ec2d7a;
+  color: #fff;
+}
+
+.epCardActive {
+  background: #ec2d7a;
+  color: #fff;
+  border-color: #ec2d7a;
 }
 
 .infoCard {
-  padding: 15px;
+  padding: 16px;
   color: #ccc;
-  background: #1a1a1a;
-  margin-top: 10px;
-  border-radius: 8px;
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 12px;
+  margin-bottom: 16px;
 }
 
 .infoHead {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .infoTitle {
   color: #fff;
-  font-size: 1.2rem;
-  margin: 0 0 10px 0;
+  font-size: 1.15rem;
+  margin: 0 0 10px;
 }
 
 .infoActions {
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .moyuBtn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: #fff;
-  padding: 4px 12px;
-  border-radius: 100px;
+  padding: 6px 14px;
+  border-radius: 999px;
   font-size: 0.8rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 5px;
+}
+
+.moyuBtn:hover {
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .remark {
@@ -92,28 +325,40 @@
 .metaRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 10px;
-  font-size: 0.8rem;
-  opacity: 0.8;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.metaTag {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #aaa;
+  font-size: 0.75rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.metaTagActive {
+  border-color: #ec2d7a;
+  color: #ec2d7a;
 }
 
 .descBlock {
   font-size: 0.85rem;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .actorLine {
-  margin: 0 0 5px 0;
+  margin: 0 0 8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .descDivider {
-  border-top: 1px solid #333;
-  margin-top: 10px;
-  padding-top: 10px;
+  border-top: 1px solid #2a2a2a;
+  margin-top: 12px;
+  padding-top: 12px;
 }
 
 .descText {
@@ -121,48 +366,61 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  line-height: 1.6;
 }
 
 .descCollapsed {
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
 }
 
 .descToggle {
-  color: var(--primary);
+  color: var(--primary, #ec2d7a);
   font-size: 0.8rem;
-  margin-top: 5px;
+  margin-top: 8px;
   text-align: center;
   cursor: pointer;
 }
 
-.altBox {
-  margin-bottom: 20px;
-  padding: 15px;
-  background: rgba(236, 45, 122, 0.1);
-  border: 1px solid #ec2d7a;
-  border-radius: 8px;
+.footer {
+  border-top: 1px solid #222;
+  padding: 20px 16px;
+  text-align: center;
+  color: #666;
+  font-size: 0.85rem;
 }
 
-.altTitle {
-  color: #ec2d7a;
-  font-size: 0.9rem;
-  margin-bottom: 10px;
-  font-weight: bold;
+@media (max-width: 992px) {
+  .bodyGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .aside {
+    position: static;
+  }
+
+  .sourceGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 280px;
+  }
+
+  .pageTitle {
+    font-size: 1.15rem;
+  }
+
+  .headerInner {
+    padding: 10px 12px;
+  }
+
+  .main {
+    padding: 12px;
+  }
 }
 
-.altBtns {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
+@media (max-width: 480px) {
+  .sourceGrid {
+    grid-template-columns: 1fr 1fr;
+  }
 
-.altBtn {
-  background: #ec2d7a;
-  color: #fff;
-  border: none;
-  padding: 5px 12px;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  cursor: pointer;
+  .titleBar {
+    display: none;
+  }
 }

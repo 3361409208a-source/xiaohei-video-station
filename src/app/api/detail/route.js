@@ -15,7 +15,7 @@ export async function GET(request) {
       : `${API_URL}/api/detail?id=${id}`;
     try {
       const response = await fetch(backendUrl, {
-        signal: AbortSignal.timeout(2000),
+        signal: AbortSignal.timeout(10000),
       });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -30,12 +30,8 @@ export async function GET(request) {
     }
   }
 
-  if (!src) {
-    return NextResponse.json({ error: 'Movie detail not found' }, { status: 404 });
-  }
-
   try {
-    const data = await getDetail(id, src);
+    const data = await getDetail(id, src || undefined);
     if (!data) {
       return NextResponse.json({ error: 'Movie detail not found' }, { status: 404 });
     }

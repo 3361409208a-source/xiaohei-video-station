@@ -21,10 +21,13 @@ def log(msg):
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 
+_http = requests.Session()
+_http.trust_env = False
+
 def fetch_page(engine, page):
     try:
         api_url = f"{engine['api']}?ac=detail&pg={page}"
-        res = requests.get(api_url, timeout=10, headers=HEADERS)
+        res = _http.get(api_url, timeout=10, headers=HEADERS)
         data = res.json()
         return data.get("list", [])
     except:

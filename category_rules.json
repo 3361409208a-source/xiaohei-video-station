@@ -1,53 +1,169 @@
 {
   "categories": {
     "短剧": {
-      "include": ["短剧"],
-      "title_include": ["短剧"],
+      "include": [
+        "短剧"
+      ],
+      "title_include": [
+        "短剧"
+      ],
       "exclude": [],
       "title_exclude": []
     },
     "电视剧": {
-      "include": ["剧", "电视", "连续剧"],
+      "include": [
+        "剧",
+        "电视",
+        "连续剧"
+      ],
       "title_include": [],
-      "exclude": ["短剧", "解说"],
-      "title_exclude": ["短剧"]
+      "exclude": [
+        "短剧",
+        "解说"
+      ],
+      "title_exclude": [
+        "短剧"
+      ]
     },
     "动漫": {
-      "include": ["动漫", "动画", "番剧"],
+      "include": [
+        "动漫",
+        "动画",
+        "番剧"
+      ],
       "title_include": [],
-      "exclude": ["解说"],
+      "exclude": [
+        "解说"
+      ],
       "title_exclude": []
     },
     "电影": {
-      "include": ["电影", "片", "蓝光"],
+      "include": [
+        "电影",
+        "片",
+        "蓝光"
+      ],
       "title_include": [],
-      "exclude": ["解说", "短剧"],
-      "title_exclude": ["短剧"]
+      "exclude": [
+        "解说",
+        "短剧"
+      ],
+      "title_exclude": [
+        "短剧"
+      ]
     },
     "综艺": {
-      "include": ["综艺", "晚会"],
+      "include": [
+        "综艺",
+        "晚会"
+      ],
       "title_include": [],
-      "exclude": ["解说"],
+      "exclude": [
+        "解说"
+      ],
       "title_exclude": []
     },
     "纪录片": {
-      "include": ["纪录", "纪录片"],
+      "include": [
+        "纪录",
+        "纪录片"
+      ],
       "title_include": [],
-      "exclude": ["解说"],
+      "exclude": [
+        "解说"
+      ],
       "title_exclude": []
     },
     "其他": {
       "mode": "other",
-      "other_exclude": ["电影", "片", "剧", "动漫", "综艺", "解说", "短剧", "纪录"]
+      "other_exclude": [
+        "电影",
+        "片",
+        "剧",
+        "动漫",
+        "综艺",
+        "解说",
+        "短剧",
+        "纪录"
+      ]
+    },
+    "福利": {
+      "include": [
+        "伦理",
+        "福利",
+        "成人",
+        "写真",
+        "情色",
+        "丝袜",
+        "激情",
+        "限制"
+      ],
+      "title_include": [],
+      "exclude": [
+        "解说"
+      ],
+      "title_exclude": []
     }
   },
   "major_map": [
-    { "match": ["短剧"], "major": "短剧" },
-    { "match": ["解说"], "major": "其他" },
-    { "match": ["纪录"], "major": "纪录片" },
-    { "match": ["动漫", "动画", "番剧"], "major": "动漫" },
-    { "match": ["综艺", "晚会"], "major": "综艺" },
-    { "match": ["电影", "片", "蓝光"], "major": "电影" },
-    { "match": ["剧", "电视", "连续剧"], "major": "电视剧" }
+    {
+      "match": [
+        "伦理",
+        "福利",
+        "成人",
+        "写真",
+        "情色"
+      ],
+      "major": "福利"
+    },
+    {
+      "match": [
+        "短剧"
+      ],
+      "major": "短剧"
+    },
+    {
+      "match": [
+        "解说"
+      ],
+      "major": "其他"
+    },
+    {
+      "match": [
+        "纪录"
+      ],
+      "major": "纪录片"
+    },
+    {
+      "match": [
+        "动漫",
+        "动画",
+        "番剧"
+      ],
+      "major": "动漫"
+    },
+    {
+      "match": [
+        "综艺",
+        "晚会"
+      ],
+      "major": "综艺"
+    },
+    {
+      "match": [
+        "电影",
+        "片",
+        "蓝光"
+      ],
+      "major": "电影"
+    },
+    {
+      "match": [
+        "剧",
+        "电视",
+        "连续剧"
+      ],
+      "major": "电视剧"
+    }
   ]
 }
