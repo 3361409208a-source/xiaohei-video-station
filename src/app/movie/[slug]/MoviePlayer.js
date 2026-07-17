@@ -103,11 +103,12 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
   }, [detail?.title, src, isSearchingAlt, attemptedSources, handleSwitchSource]);
 
   useEffect(() => {
-    if (!id || !src) return;
+    if (!id) return;
 
     const fetchDetail = async () => {
       try {
-        const res = await fetch(`/api/detail?id=${id}&src=${encodeURIComponent(src)}`);
+        const srcQuery = src ? `&src=${encodeURIComponent(src)}` : '';
+        const res = await fetch(`/api/detail?id=${id}${srcQuery}`);
         const data = await res.json();
 
         // API 返回 null 表示数据库和实时源都找不到该资源
@@ -118,6 +119,9 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
         }
 
         setDetail(data);
+        if (data.source_name) {
+          setAttemptedSources((prev) => (prev.includes(data.source_name) ? prev : [...prev, data.source_name]));
+        }
 
         // 如果返回的是缓存数据且链接已经很久（比如2022），大概率无法播放，主动搜索替代源，但不自动切换
         if (data._from_cache) {

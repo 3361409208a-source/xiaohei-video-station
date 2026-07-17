@@ -1,9 +1,10 @@
+import { buildMoviePath } from './movieUrl';
+
 /**
- * 生成与站内一致的影片 sitemap URL
+ * 生成 sitemap 用 canonical 影片 URL（不含 ?src=）
  */
 export function buildMovieSitemapUrl(m, baseUrl = 'https://www.xiaoheiv.top') {
   const vodId = m.vod_id ?? m.id;
-  const sourceName = m.source_name || m.source || '默认';
-  const slug = `${m.title}-${vodId}`;
-  return `${baseUrl}/movie/${encodeURIComponent(slug)}?src=${encodeURIComponent(sourceName)}`;
+  const path = buildMoviePath(m.title, vodId);
+  return `${baseUrl}${path}`;
 }

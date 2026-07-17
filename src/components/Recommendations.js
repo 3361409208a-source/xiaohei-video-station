@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { buildMoviePath } from '@/utils/movieUrl';
 import { mapToMajorCategory } from '@/utils/categoryRules';
 
 export default function Recommendations({ category, currentId, limit = 8 }) {
@@ -42,11 +43,10 @@ export default function Recommendations({ category, currentId, limit = 8 }) {
       >
         {items.map((item) => {
           const itemId = item.vod_id || item.id;
-          const src = item.source_name || item.source || '默认';
-          const href = `/movie/${encodeURIComponent(`${item.title}-${itemId}`)}?src=${encodeURIComponent(src)}`;
+          const href = buildMoviePath(item.title, itemId);
           return (
             <Link
-              key={`${itemId}-${src}`}
+              key={`${itemId}-${item.title}`}
               href={href}
               style={{
                 textDecoration: 'none',

@@ -10,10 +10,12 @@ export async function GET(request) {
   const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
   if (API_URL) {
-    const backendUrl = new URL(`${API_URL}/api/detail?id=${id}&src=${encodeURIComponent(src || '')}`);
+    const backendUrl = src
+      ? `${API_URL}/api/detail?id=${id}&src=${encodeURIComponent(src)}`
+      : `${API_URL}/api/detail?id=${id}`;
     try {
-      const response = await fetch(backendUrl.toString(), {
-        signal: AbortSignal.timeout(2000)
+      const response = await fetch(backendUrl, {
+        signal: AbortSignal.timeout(2000),
       });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -26,6 +28,10 @@ export async function GET(request) {
     } catch (error) {
       console.warn('Fetch detail from backend failed, using backup service:', error.message);
     }
+  }
+
+  if (!src) {
+    return NextResponse.json({ error: 'Movie detail not found' }, { status: 404 });
   }
 
   try {

@@ -13,6 +13,7 @@ import io
 import time
 import concurrent.futures
 import subprocess
+from typing import Optional
 from db import get_db, init_db
 
 if sys.platform == "win32":
@@ -358,12 +359,12 @@ def admin_cleanup(x_admin_token: str = Header(None)):
     return cleanup_storage(50)
 
 @app.get("/api/detail")
-def get_detail(id: str, src: str):
+def get_detail(id: str, src: Optional[str] = Query(None)):
     conn = get_db()
     cursor = conn.cursor()
     
     # 解析来源名称
-    decoded_src = urllib.parse.unquote(src or "")
+    decoded_src = urllib.parse.unquote(src or "") if src else ""
     if decoded_src == 'undefined':
         decoded_src = ""
         
@@ -372,8 +373,11 @@ def get_detail(id: str, src: str):
     
     # 修复 ID 空间冲突逻辑：
     # 1. 优先尝试按 (vod_id + source) 精准匹配（针对实时搜索结果点进来的情况）
-    cursor.execute("SELECT vod_id, source_name FROM movies WHERE vod_id = ? AND source_name = ?", (id, decoded_src))
-    row = cursor.fetchone()
+    if decoded_src:
+        cursor.execute("SELECT vod_id, source_name FROM movies WHERE vod_id = ? AND source_name = ?", (id, decoded_src))
+        row = cursor.fetchone()
+    else:
+        row = None
     
     if not row:
         # 2. 如果没找到，再看它是否是数据库的主键 id（针对首页推荐位点进来的情况）
@@ -383,6 +387,17 @@ def get_detail(id: str, src: str):
         if row and decoded_src and row[1] != decoded_src:
             row = None
             
+        if row:
+            actual_vod_id = str(row[0])
+            actual_src = row[1]
+
+    if not row and not decoded_src:
+        # 3. SEO canonical 无 src：取该 vod_id 最新更新的源
+        cursor.execute(
+            "SELECT vod_id, source_name FROM movies WHERE vod_id = ? ORDER BY update_time DESC, id ASC LIMIT 1",
+            (id,),
+        )
+        row = cursor.fetchone()
         if row:
             actual_vod_id = str(row[0])
             actual_src = row[1]
@@ -576,28 +591,59 @@ def test_source(data: dict = Body(...), x_admin_token: str = Header(None)):
     except Exception as e:
         return {"status": "error", "message": f"连接超时或失败: {str(e)}"}
 
+SITEMAP_CHUNK_SIZE = 5000
+
+SITEMAP_QUALITY_WHERE = """
+    length(trim(title)) >= 2
+    AND poster IS NOT NULL AND trim(poster) != ''
+    AND episodes IS NOT NULL AND trim(episodes) != '' AND trim(episodes) != '[]'
+"""
+
+SITEMAP_DEDUP_IDS = f"""
+    SELECT id FROM (
+        SELECT id,
+               ROW_NUMBER() OVER (PARTITION BY title ORDER BY update_time DESC, id ASC) AS rn
+        FROM movies
+        WHERE {SITEMAP_QUALITY_WHERE}
+    ) WHERE rn = 1
+"""
+
+def _sitemap_total(conn):
+    return conn.execute(f"SELECT COUNT(*) FROM movies WHERE id IN ({SITEMAP_DEDUP_IDS})").fetchone()[0]
+
+def _fetch_sitemap_rows(conn, offset: int, limit: int):
+    conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
+    cursor = conn.cursor()
+    cursor.execute(
+        f"""
+        SELECT id, vod_id, title, category, source_name, update_time, poster, year, description
+        FROM movies
+        WHERE id IN ({SITEMAP_DEDUP_IDS})
+        ORDER BY update_time DESC, id ASC
+        LIMIT ? OFFSET ?
+        """,
+        (limit, offset),
+    )
+    return [dict(r) for r in cursor.fetchall()]
+
 @app.get("/api/sitemap-info")
 def get_sitemap_info():
     conn = get_db()
-    count = conn.execute("SELECT count(*) FROM movies").fetchone()[0]
+    deduped = _sitemap_total(conn)
+    raw = conn.execute("SELECT count(*) FROM movies").fetchone()[0]
     conn.close()
-    return {"total": count, "chunk_size": 5000}
+    return {
+        "total": deduped,
+        "raw_total": raw,
+        "chunk_size": SITEMAP_CHUNK_SIZE,
+        "deduped": True,
+    }
 
 @app.get("/api/sitemap-raw")
 def get_sitemap_raw(chunk: int = Query(0)):
     conn = get_db()
-    conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
-    cursor = conn.cursor()
-    page_size = 5000
-    limit = page_size
-    offset = chunk * page_size
-    # 返回 vod_id + source_name，与站内 /movie/{title}-{vod_id}?src= 一致
-    cursor.execute(
-        "SELECT id, vod_id, title, category, source_name, update_time FROM movies ORDER BY id LIMIT ? OFFSET ?",
-        (limit, offset),
-    )
-    rows = cursor.fetchall()
-    results = [dict(r) for r in rows]
+    offset = chunk * SITEMAP_CHUNK_SIZE
+    results = _fetch_sitemap_rows(conn, offset, SITEMAP_CHUNK_SIZE)
     conn.close()
     return results
 

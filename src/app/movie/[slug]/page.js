@@ -1,8 +1,11 @@
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import MoviePlayer from './MoviePlayer';
+import MovieJsonLd from '@/components/MovieJsonLd';
 import { getDetail } from '@/utils/backupService';
 import { isValidDetailPayload } from '@/utils/searchHelpers';
+import { buildMovieDescription, buildMovieKeywords } from '@/utils/seoHelpers';
+import { buildMoviePath } from '@/utils/movieUrl';
 
 const BASE_URL = 'https://www.xiaoheiv.top';
 
@@ -20,17 +23,15 @@ function isValidDetail(data) {
 
 async function fetchMovieDetail(id, src) {
   let data = null;
+  const srcQuery = src ? `&src=${encodeURIComponent(src)}` : '';
 
   try {
     const API_URL = process.env.NEXT_PUBLIC_API_URL;
     if (API_URL) {
-      const response = await fetch(
-        `${API_URL}/api/detail?id=${id}&src=${encodeURIComponent(src)}`,
-        {
-          next: { revalidate: 86400 },
-          signal: AbortSignal.timeout(3000),
-        }
-      );
+      const response = await fetch(`${API_URL}/api/detail?id=${id}${srcQuery}`, {
+        next: { revalidate: 86400 },
+        signal: AbortSignal.timeout(5000),
+      });
 
       if (response.ok) {
         const json = await response.json();
@@ -41,7 +42,7 @@ async function fetchMovieDetail(id, src) {
     console.warn('Failed to fetch metadata from backend, trying backup service:', error.message);
   }
 
-  if (!data) {
+  if (!data && src) {
     try {
       const backup = await getDetail(id, src);
       if (isValidDetail(backup)) data = backup;
@@ -53,49 +54,60 @@ async function fetchMovieDetail(id, src) {
   return data;
 }
 
+function resolvePlaybackSrc(requestedSrc, data) {
+  return requestedSrc || data?.source_name || data?.source || '';
+}
+
 export default async function MoviePage({ params, searchParams }) {
   const resolvedParams = await params;
   const resolvedSearchParams = await searchParams;
 
   const { id, titleFromSlug } = parseSlug(resolvedParams.slug);
-  const src = resolvedSearchParams.src;
+  const requestedSrc = resolvedSearchParams.src || '';
 
-  if (!id || !src) {
+  if (!id) {
     notFound();
   }
 
-  const data = await fetchMovieDetail(id, src);
+  const data = await fetchMovieDetail(id, requestedSrc || undefined);
   if (!data) {
     notFound();
   }
 
+  const playbackSrc = resolvePlaybackSrc(requestedSrc, data);
+  const canonicalPath = buildMoviePath(data.title, data.vod_id || id);
+  const pageUrl = `${BASE_URL}${canonicalPath}`;
+
   return (
-    <Suspense
-      fallback={
-        <div
-          className="page-wrapper"
-          style={{
-            background: '#0a0a0a',
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <div className="loading-con">
-            <div className="spinner"></div>
-            <div className="loading-text">正在为您准备精彩影片...</div>
+    <>
+      <MovieJsonLd data={data} pageUrl={pageUrl} />
+      <Suspense
+        fallback={
+          <div
+            className="page-wrapper"
+            style={{
+              background: '#0a0a0a',
+              minHeight: '100vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <div className="loading-con">
+              <div className="spinner"></div>
+              <div className="loading-text">正在为您准备精彩影片...</div>
+            </div>
           </div>
-        </div>
-      }
-    >
-      <MoviePlayer
-        id={id}
-        title={data.title || titleFromSlug}
-        src={src}
-        initialUrl={resolvedSearchParams.url}
-      />
-    </Suspense>
+        }
+      >
+        <MoviePlayer
+          id={data.vod_id || id}
+          title={data.title || titleFromSlug}
+          src={playbackSrc}
+          initialUrl={resolvedSearchParams.url}
+        />
+      </Suspense>
+    </>
   );
 }
 
@@ -104,33 +116,35 @@ export async function generateMetadata({ params, searchParams }) {
   const resolvedSearchParams = await searchParams;
 
   const { id } = parseSlug(resolvedParams.slug);
-  const src = resolvedSearchParams.src;
+  const requestedSrc = resolvedSearchParams.src || '';
 
-  if (!id || !src) {
+  if (!id) {
     notFound();
   }
 
-  const data = await fetchMovieDetail(id, src);
+  const data = await fetchMovieDetail(id, requestedSrc || undefined);
   if (!data) {
     notFound();
   }
 
   const title = data.title;
-  const canonicalPath = `/movie/${encodeURIComponent(`${title}-${data.vod_id || id}`)}?src=${encodeURIComponent(data.source_name || src)}`;
+  const canonicalPath = buildMoviePath(title, data.vod_id || id);
+  const pageUrl = `${BASE_URL}${canonicalPath}`;
+  const description = buildMovieDescription(data);
 
   return {
     title: `${title}在线免费观看 - 小黑搜影`,
-    description: `${title}高清在线观看，免费播放。小黑搜影提供${title}的多个播放源，支持在线观看，无需下载，即点即播。`,
-    keywords: `${title},${title}在线观看,${title}免费看,${title}高清,${title}在线播放,${title}免费观看`,
+    description,
+    keywords: buildMovieKeywords(data),
     alternates: {
-      canonical: `${BASE_URL}${canonicalPath}`,
+      canonical: pageUrl,
     },
     openGraph: {
       title: `${title}在线免费观看`,
-      description: `${title}高清在线观看，免费播放`,
+      description,
       type: 'video.movie',
       siteName: '小黑搜影',
-      url: `${BASE_URL}${canonicalPath}`,
+      url: pageUrl,
       images: data.poster ? [{ url: data.poster }] : [],
     },
   };

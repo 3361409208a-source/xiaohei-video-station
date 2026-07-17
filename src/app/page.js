@@ -5,6 +5,7 @@ import Link from 'next/link';
 import ThreeDashboard from '@/components/ThreeDashboard';
 import AdSlot from '@/components/AdSlot';
 import { resolveAdsConfig } from '@/utils/resolveAdsConfig';
+import { buildMoviePath } from '@/utils/movieUrl';
 
 const FALLBACK_HOT = ['剑来', '小城大事'];
 
@@ -174,7 +175,7 @@ function HomeContent() {
                   const isReel = item.category.includes('解说') || item.title.includes('解说');
                   const targetHref = isReel
                     ? `/reels?id=${itemId}&src=${encodeURIComponent(item.source_name || item.source)}`
-                    : `/movie/${encodeURIComponent(`${item.title}-${itemId}`)}?src=${encodeURIComponent(item.source_name || item.source)}`;
+                    : buildMoviePath(item.title, itemId);
 
                   return (
                     <Link key={`${itemId}-${idx}`} href={targetHref} className="movie-card">

@@ -49,16 +49,44 @@ describe('category_rules sync', () => {
 });
 
 describe('buildMovieSitemapUrl', () => {
-  it('uses vod_id and source_name', () => {
+  it('uses canonical path without src query', () => {
     const url = buildMovieSitemapUrl({
       id: 1,
       vod_id: 999,
       title: '测试片',
       source_name: '量子高清',
     });
-    expect(url).toContain(encodeURIComponent('测试片-999'));
-    expect(url).toContain(`src=${encodeURIComponent('量子高清')}`);
+    expect(url).toBe('https://www.xiaoheiv.top/movie/' + encodeURIComponent('测试片-999'));
+    expect(url).not.toContain('src=');
     expect(url).not.toContain('-1?');
+  });
+});
+
+describe('movieUrl', () => {
+  it('builds canonical movie path', async () => {
+    const { buildMoviePath, buildMoviePlayHref } = await import('../utils/movieUrl');
+    expect(buildMoviePath('剑来', 123)).toBe(`/movie/${encodeURIComponent('剑来-123')}`);
+    expect(buildMoviePlayHref('剑来', 123, '量子高清')).toContain('src=');
+  });
+});
+
+describe('seoHelpers', () => {
+  it('builds differentiated movie description', async () => {
+    const { buildMovieDescription, buildMovieJsonLd } = await import('../utils/seoHelpers');
+    const desc = buildMovieDescription({
+      title: '剑来',
+      year: '2023',
+      category: '动漫',
+      actor: '张三,李四',
+      description: '<p>少年修行</p>',
+    });
+    expect(desc).toContain('剑来');
+    expect(desc).toContain('2023');
+    expect(desc).toContain('张三');
+
+    const jsonLd = buildMovieJsonLd({ title: '剑来', year: '2023', poster: 'https://x/p.jpg' }, 'https://example.com/movie/x');
+    expect(jsonLd['@type']).toBe('Movie');
+    expect(jsonLd.name).toBe('剑来');
   });
 });
 

@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { buildMoviePlayHref } from '@/utils/movieUrl';
 
 /**
  * 遗留 /play?id=&src=&url= 入口：跳转到统一的 /movie/{title}-{id} 播放页
@@ -14,7 +15,7 @@ function PlayRedirect() {
   const url = searchParams.get('url');
 
   useEffect(() => {
-    if (!id || !src) {
+    if (!id) {
       router.replace('/');
       return;
     }
@@ -22,8 +23,9 @@ function PlayRedirect() {
     let cancelled = false;
     (async () => {
       let title = '影片';
+      const srcQuery = src ? `&src=${encodeURIComponent(src)}` : '';
       try {
-        const res = await fetch(`/api/detail?id=${id}&src=${encodeURIComponent(src)}`);
+        const res = await fetch(`/api/detail?id=${id}${srcQuery}`);
         if (res.ok) {
           const data = await res.json();
           if (data?.title) title = data.title;
@@ -32,9 +34,7 @@ function PlayRedirect() {
         // ignore，用占位标题
       }
       if (cancelled) return;
-      const qs = new URLSearchParams({ src });
-      if (url) qs.set('url', url);
-      router.replace(`/movie/${encodeURIComponent(`${title}-${id}`)}?${qs.toString()}`);
+      router.replace(buildMoviePlayHref(title, id, src, { url }));
     })();
 
     return () => {
