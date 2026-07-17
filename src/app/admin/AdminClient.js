@@ -259,6 +259,151 @@ export default function AdminClient({ initialStats }) {
                 <label className={styles.label}>页脚文字</label>
                 <input value={siteConfig.footer} onChange={e => setSiteConfig({ ...siteConfig, footer: e.target.value })} className={styles.input} />
               </div>
+
+              <hr className={styles.sectionDivider} />
+              <h4 className={styles.subHeading}>变现与增长</h4>
+
+              <label className={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(siteConfig.ads?.enabled)}
+                  onChange={e => setSiteConfig({
+                    ...siteConfig,
+                    ads: { ...(siteConfig.ads || {}), enabled: e.target.checked },
+                  })}
+                />
+                启用广告位（AdSlot）
+              </label>
+              <div>
+                <label className={styles.label}>首页广告 Script（Adsterra 等）</label>
+                <input
+                  value={siteConfig.ads?.slots?.home_below_search?.networks?.[0]?.src || ''}
+                  onChange={e => {
+                    const ads = JSON.parse(JSON.stringify(siteConfig.ads || { enabled: false, slots: {} }));
+                    if (!ads.slots) ads.slots = {};
+                    if (!ads.slots.home_below_search) ads.slots.home_below_search = { networks: [{ type: 'script', src: '', id: '' }] };
+                    if (!ads.slots.home_below_search.networks[0]) ads.slots.home_below_search.networks[0] = { type: 'script', src: '', id: '' };
+                    ads.slots.home_below_search.networks[0].src = e.target.value;
+                    setSiteConfig({ ...siteConfig, ads });
+                  }}
+                  className={styles.input}
+                  placeholder="https://..."
+                />
+              </div>
+              <div>
+                <label className={styles.label}>播放页广告 Script</label>
+                <input
+                  value={siteConfig.ads?.slots?.player_below?.networks?.[0]?.src || ''}
+                  onChange={e => {
+                    const ads = JSON.parse(JSON.stringify(siteConfig.ads || { enabled: false, slots: {} }));
+                    if (!ads.slots) ads.slots = {};
+                    if (!ads.slots.player_below) ads.slots.player_below = { networks: [{ type: 'script', src: '', id: '' }] };
+                    if (!ads.slots.player_below.networks[0]) ads.slots.player_below.networks[0] = { type: 'script', src: '', id: '' };
+                    ads.slots.player_below.networks[0].src = e.target.value;
+                    setSiteConfig({ ...siteConfig, ads });
+                  }}
+                  className={styles.input}
+                  placeholder="https://..."
+                />
+              </div>
+
+              <label className={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(siteConfig.private_traffic?.enabled)}
+                  onChange={e => setSiteConfig({
+                    ...siteConfig,
+                    private_traffic: { ...(siteConfig.private_traffic || {}), enabled: e.target.checked },
+                  })}
+                />
+                启用私域引流公告
+              </label>
+              <div>
+                <label className={styles.label}>私域引流话术</label>
+                <input
+                  value={siteConfig.private_traffic?.message || ''}
+                  onChange={e => setSiteConfig({
+                    ...siteConfig,
+                    private_traffic: { ...(siteConfig.private_traffic || {}), message: e.target.value },
+                  })}
+                  className={styles.input}
+                  placeholder="防止走丢，更多福利资源请进群获取"
+                />
+              </div>
+              <div>
+                <label className={styles.label}>社群链接（广告图片位默认跳转）</label>
+                <input
+                  value={siteConfig.private_traffic?.group_url || ''}
+                  onChange={e => setSiteConfig({
+                    ...siteConfig,
+                    private_traffic: { ...(siteConfig.private_traffic || {}), group_url: e.target.value },
+                  })}
+                  className={styles.input}
+                  placeholder="https://t.me/..."
+                />
+              </div>
+              <div>
+                <label className={styles.label}>电报群链接</label>
+                <input
+                  value={siteConfig.private_traffic?.telegram_url || ''}
+                  onChange={e => setSiteConfig({
+                    ...siteConfig,
+                    private_traffic: { ...(siteConfig.private_traffic || {}), telegram_url: e.target.value },
+                  })}
+                  className={styles.input}
+                />
+              </div>
+              <div>
+                <label className={styles.label}>微信提示（纯文字）</label>
+                <input
+                  value={siteConfig.private_traffic?.wechat_hint || ''}
+                  onChange={e => setSiteConfig({
+                    ...siteConfig,
+                    private_traffic: { ...(siteConfig.private_traffic || {}), wechat_hint: e.target.value },
+                  })}
+                  className={styles.input}
+                  placeholder="xiaoxiaohei"
+                />
+              </div>
+
+              <label className={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(siteConfig.invite?.enabled)}
+                  onChange={e => setSiteConfig({
+                    ...siteConfig,
+                    invite: { ...(siteConfig.invite || {}), enabled: e.target.checked },
+                  })}
+                />
+                启用邀请码门禁（大规模推广时建议开启）
+              </label>
+              <div>
+                <label className={styles.label}>邀请页提示语</label>
+                <input
+                  value={siteConfig.invite?.message || ''}
+                  onChange={e => setSiteConfig({
+                    ...siteConfig,
+                    invite: { ...(siteConfig.invite || {}), message: e.target.value },
+                  })}
+                  className={styles.input}
+                />
+              </div>
+              <div>
+                <label className={styles.label}>邀请码列表（每行一个）</label>
+                <textarea
+                  value={(siteConfig.invite?.codes || []).join('\n')}
+                  onChange={e => setSiteConfig({
+                    ...siteConfig,
+                    invite: {
+                      ...(siteConfig.invite || {}),
+                      codes: e.target.value.split('\n').map(s => s.trim()).filter(Boolean),
+                    },
+                  })}
+                  className={styles.textarea}
+                  placeholder="xiaohei2026"
+                />
+              </div>
+
               <button onClick={saveConfig} disabled={loading} className={styles.primaryBtn}>{loading ? '保存中...' : '💾 保存配置'}</button>
             </div>
           </div>

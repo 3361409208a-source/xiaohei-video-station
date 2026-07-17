@@ -279,6 +279,23 @@ def get_latest():
     conn.close()
     return results
 
+def _public_private_traffic(cfg):
+    pt = cfg.get("private_traffic") or {}
+    return {
+        "enabled": bool(pt.get("enabled")),
+        "message": pt.get("message", ""),
+        "telegram_url": pt.get("telegram_url", ""),
+        "group_url": pt.get("group_url", ""),
+        "wechat_hint": pt.get("wechat_hint", ""),
+    }
+
+def _public_invite(cfg):
+    inv = cfg.get("invite") or {}
+    return {
+        "enabled": bool(inv.get("enabled")),
+        "message": inv.get("message", "本站现已开启邀请访问，请输入邀请码进入"),
+    }
+
 @app.get("/api/config")
 def get_public_config():
     cfg = load_json(CONFIG_FILE, {})
@@ -287,8 +304,27 @@ def get_public_config():
         "notice": cfg.get("notice", ""), 
         "footer": cfg.get("footer", "© 2026"),
         "theme": cfg.get("theme", ""),
-        "ads": cfg.get("ads", {"enabled": False, "slots": {}})
+        "ads": cfg.get("ads", {"enabled": False, "slots": {}}),
+        "private_traffic": _public_private_traffic(cfg),
+        "invite": _public_invite(cfg),
     }
+
+@app.get("/api/invite/status")
+def invite_status():
+    cfg = load_json(CONFIG_FILE, {})
+    return _public_invite(cfg)
+
+@app.post("/api/invite/verify")
+def invite_verify(data: dict = Body(...)):
+    code = (data.get("code") or "").strip()
+    cfg = load_json(CONFIG_FILE, {})
+    invite = cfg.get("invite") or {}
+    if not invite.get("enabled"):
+        return {"ok": True}
+    codes = [str(c).strip() for c in invite.get("codes", []) if str(c).strip()]
+    if code and code in codes:
+        return {"ok": True}
+    return {"ok": False, "message": "邀请码无效，请检查后重试"}
 
 @app.get("/api/trends")
 def get_public_trends(limit: int = Query(10)):

@@ -3,18 +3,66 @@
   "notice": "欢迎访问全网聚合视频站，本站资源均来自第三方，请勿非法传播。",
   "footer": "© 2026 小黑视频站 ",
   "theme": "green",
-  "ads": {
+  "private_traffic": {
+    "enabled": true,
+    "message": "防止走丢，更多福利资源请进群获取",
+    "telegram_url": "",
+    "group_url": "",
+    "wechat_hint": ""
+  },
+  "invite": {
     "enabled": false,
+    "message": "本站现已开启邀请访问，请输入邀请码进入",
+    "codes": [
+      "xiaohei2026"
+    ]
+  },
+  "ads": {
+    "enabled": true,
     "slots": {
       "home_below_search": {
         "networks": [
-          { "type": "script", "src": "", "id": "" },
-          { "type": "image", "src": "", "href": "/", "label": "推广位（配置 ads.enabled 后展示）" }
+          {
+            "type": "script",
+            "src": "",
+            "id": "adsterra-home"
+          },
+          {
+            "type": "image",
+            "src": "",
+            "href": "",
+            "label": "加入社群，获取更多资源 ›"
+          }
         ]
       },
       "player_below": {
         "networks": [
-          { "type": "image", "src": "", "href": "/", "label": "推广位（配置 ads.enabled 后展示）" }
+          {
+            "type": "script",
+            "src": "",
+            "id": "adsterra-player"
+          },
+          {
+            "type": "image",
+            "src": "",
+            "href": "",
+            "label": "防走丢 · 进群获取福利资源 ›"
+          }
+        ]
+      },
+      "player_sidebar": {
+        "networks": [
+          {
+            "type": "script",
+            "src": "",
+            "id": "adsterra-sidebar"
+          },
+          {
+            "type": "image",
+            "src": "",
+            "href": "",
+            "label": "推广位"
+          }
         ]
       }
     }

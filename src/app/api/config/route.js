@@ -16,7 +16,9 @@ export async function GET() {
       notice: '📢 防骗提醒：正在播放的视频中若出现任何广告水印，请务必提高警惕，切勿转账或参与，守护好您的财产安全！',
       footer: '© 2026 🐾 小黑搜影',
       theme: '',
-      ads: { enabled: false, slots: {} }
+      ads: { enabled: false, slots: {} },
+      private_traffic: { enabled: false, message: '', telegram_url: '', group_url: '', wechat_hint: '' },
+      invite: { enabled: false, message: '本站现已开启邀请访问，请输入邀请码进入' },
     });
   }
 }

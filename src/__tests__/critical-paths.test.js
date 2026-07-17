@@ -4,6 +4,8 @@ import { buildMovieSitemapUrl } from '../utils/sitemapUrl';
 import { isSafeProxyUrl } from '../utils/proxySafety';
 import { pickNextNetworkIndex } from '../utils/adFallback';
 import { searchDedupKey, isValidDetailPayload } from '../utils/searchHelpers';
+import { isValidInviteCode, isInviteExemptPath, normalizeInviteCode } from '../utils/inviteGate';
+import { resolveAdsConfig } from '../utils/resolveAdsConfig';
 import rootRules from '../../category_rules.json';
 import srcRules from '../data/category_rules.json';
 
@@ -107,5 +109,29 @@ describe('isValidDetailPayload', () => {
     expect(isValidDetailPayload({ error: 'x' })).toBe(false);
     expect(isValidDetailPayload({ status: 'error' })).toBe(false);
     expect(isValidDetailPayload({ title: '剑来' })).toBe(true);
+  });
+});
+
+describe('inviteGate', () => {
+  it('validates invite codes case-sensitively after trim', () => {
+    expect(isValidInviteCode(' xiaohei2026 ', ['xiaohei2026'])).toBe(true);
+    expect(isValidInviteCode('wrong', ['xiaohei2026'])).toBe(false);
+    expect(normalizeInviteCode('  abc  ')).toBe('abc');
+  });
+
+  it('exempts gate and api paths', () => {
+    expect(isInviteExemptPath('/gate')).toBe(true);
+    expect(isInviteExemptPath('/api/invite/verify')).toBe(true);
+    expect(isInviteExemptPath('/movie/foo')).toBe(false);
+  });
+});
+
+describe('resolveAdsConfig', () => {
+  it('fills empty image href from private traffic group url', () => {
+    const resolved = resolveAdsConfig(
+      { enabled: true, slots: { home_below_search: { networks: [{ type: 'image', href: '', label: 'x' }] } } },
+      { group_url: 'https://t.me/group' }
+    );
+    expect(resolved.slots.home_below_search.networks[0].href).toBe('https://t.me/group');
   });
 });

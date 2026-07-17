@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import ThreeDashboard from '@/components/ThreeDashboard';
 import AdSlot from '@/components/AdSlot';
+import { resolveAdsConfig } from '@/utils/resolveAdsConfig';
 
 const FALLBACK_HOT = ['剑来', '小城大事'];
 
@@ -13,10 +14,12 @@ function HomeContent() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('首页');
-  const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '', ads: { enabled: false } });
+  const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '', ads: { enabled: false }, private_traffic: {} });
   const [isMobile, setIsMobile] = useState(null); // null 表示尚未在客户端确定
   const [stats, setStats] = useState(null);
   const [hotSearches, setHotSearches] = useState(FALLBACK_HOT);
+
+  const adsConfig = resolveAdsConfig(config.ads, config.private_traffic);
 
   const categories = [
     { name: '首页', path: '/', active: true },
@@ -146,7 +149,7 @@ function HomeContent() {
                 <span key={tag} className="hot-tag" style={{ cursor: 'pointer' }} onClick={() => { setQuery(tag); handleSearch(tag); }}>{tag}</span>
               ))}
             </div>
-            <AdSlot slotId="home_below_search" adsConfig={config.ads} />
+            <AdSlot slotId="home_below_search" adsConfig={adsConfig} />
           </div>
         </div>
       </section>

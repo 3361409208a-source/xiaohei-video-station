@@ -3,6 +3,8 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Recommendations from '@/components/Recommendations';
 import AdSlot from '@/components/AdSlot';
+import NoticeBar from '@/components/NoticeBar';
+import { resolveAdsConfig } from '@/utils/resolveAdsConfig';
 import styles from './movie-player.module.css';
 
 export default function MoviePlayer({ id, title, src, initialUrl }) {
@@ -16,7 +18,8 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
   const playerRef = useRef(null);
   const dpInstance = useRef(null);
   const [isDescCollapsed, setIsDescCollapsed] = useState(true);
-  const [config, setConfig] = useState({ site_name: '小黑搜影', footer: '', ads: { enabled: false } });
+  const [config, setConfig] = useState({ site_name: '小黑搜影', footer: '', ads: { enabled: false }, private_traffic: {} });
+  const adsConfig = resolveAdsConfig(config.ads, config.private_traffic);
 
   // 当换源或换集时，重置已尝试的源
   useEffect(() => {
@@ -264,26 +267,16 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
         </div>
       </header>
 
-      {showNotice && (
-        <div className="broadcast-bar">
-          <div className="broadcast-content">
-            <span className="broadcast-icon">📢</span>
-            <span>防骗提醒：正在播放的视频中若出现任何广告水印，请务必提高警惕，切勿转账或参与，守护好您的财产安全！</span>
-          </div>
-          <button
-            className="broadcast-close-btn"
-            onClick={() => {
-              setShowNotice(false);
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('hide_notice_bar', 'true');
-              }
-            }}
-            title="关闭公告"
-          >
-            &times;
-          </button>
-        </div>
-      )}
+      <NoticeBar
+        config={config}
+        show={showNotice}
+        onClose={() => {
+          setShowNotice(false);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('hide_notice_bar', 'true');
+          }
+        }}
+      />
 
       {detail?._from_cache && (
         <div className={styles.cacheWarn}>
@@ -294,7 +287,7 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
       <div className={`play-layout ${styles.playLayout}`}>
         <div className="player-main">
           <div ref={playerRef} className={styles.playerBox}></div>
-          <AdSlot slotId="player_below" adsConfig={config.ads} />
+          <AdSlot slotId="player_below" adsConfig={adsConfig} />
           {detail && (
             <div className={`movie-info-card ${styles.infoCard}`}>
               <div className={styles.infoHead}>
@@ -333,6 +326,7 @@ export default function MoviePlayer({ id, title, src, initialUrl }) {
         </div>
 
         <div className="episode-sidebar">
+          <AdSlot slotId="player_sidebar" adsConfig={adsConfig} />
           {altSources.length > 0 && (
             <div className={styles.altBox}>
               <div className={styles.altTitle}>🌚 发现可用替代路线：</div>

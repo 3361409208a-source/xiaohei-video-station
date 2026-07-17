@@ -447,3 +447,24 @@
     grid-template-columns: 1fr;
   }
 }
+
+.sectionDivider {
+  border: none;
+  border-top: 1px solid #334155;
+  margin: 1.5rem 0 1rem;
+}
+
+.subHeading {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  color: #38bdf8;
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  cursor: pointer;
+  color: #e2e8f0;
+}

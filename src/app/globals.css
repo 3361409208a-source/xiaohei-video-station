@@ -632,6 +632,16 @@ a {
   animation: scroll-text 25s linear infinite;
 }
 
+.notice-cta {
+  color: #fff;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.notice-wechat {
+  color: #fcd34d;
+}
+
 @keyframes scroll-text {
   from { transform: translateX(100vw); }
   to { transform: translateX(-100%); }
