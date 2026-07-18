@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
+import "./experience.css";
 import ThemeInitializer from "./ThemeInitializer";
 
 const geistSans = Geist({

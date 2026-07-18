@@ -15,14 +15,21 @@ export default function AdSlot({ slotId, adsConfig }) {
     () => adsConfig?.slots?.[slotId]?.networks || [],
     [adsConfig, slotId]
   );
+  const networksKey = useMemo(() => JSON.stringify(networks), [networks]);
 
+  return (
+    <AdSlotContent
+      key={`${slotId}-${networksKey}`}
+      slotId={slotId}
+      enabled={enabled}
+      networks={networks}
+    />
+  );
+}
+
+function AdSlotContent({ slotId, enabled, networks }) {
   const [index, setIndex] = useState(() => pickNextNetworkIndex(networks, 0, false));
   const [blocked, setBlocked] = useState(false);
-
-  useEffect(() => {
-    setIndex(pickNextNetworkIndex(networks, 0, false));
-    setBlocked(false);
-  }, [networks]);
 
   // bait 检测：被拦截时切到下一网络
   useEffect(() => {

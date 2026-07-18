@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import os
+from play_url_parser import parse_play_episodes
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "data.db")
 
@@ -89,32 +90,15 @@ def save_movies(movies_list):
         try:
             # 处理播放列表
             episodes_raw = item.get("episodes", "")
-            ep_list = []
             if isinstance(episodes_raw, list):
                 ep_list = episodes_raw
             elif isinstance(episodes_raw, str) and episodes_raw:
-                # 解析 CMS 格式的播放地址: "第1集$url1#第2集$url2"
-                parts = episodes_raw.replace('\r', '').split("#")
-                for p in parts:
-                    if "$" in p:
-                        try:
-                            name, url = p.split("$", 1)
-                            if any(ext in url.lower() for ext in [".m3u8", ".mp4"]):
-                                ep_list.append({"name": name, "url": url})
-                        except: continue
-            
-            # 如果依然解析不出有效链接（可能是格式不同），尝试检查原始 API 字段
+                ep_list = parse_play_episodes(episodes_raw)
+            else:
+                ep_list = []
+
             if not ep_list and "vod_play_url" in item:
-                # 兼容直接传入原始 item 的情况
-                raw_url = item["vod_play_url"]
-                parts = raw_url.replace('\r', '').split("#")
-                for p in parts:
-                    if "$" in p:
-                        try:
-                            name, url = p.split("$", 1)
-                            if any(ext in url.lower() for ext in [".m3u8", ".mp4"]):
-                                ep_list.append({"name": name, "url": url})
-                        except: continue
+                ep_list = parse_play_episodes(item.get("vod_play_url", ""))
 
             vod_id = str(item.get("id") or item.get("vod_id") or "")
             source_name = item.get("source") or item.get("source_name") or "默认"

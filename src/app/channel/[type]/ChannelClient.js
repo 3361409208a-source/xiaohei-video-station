@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Film, Play } from 'lucide-react';
+import LoadingGrid from '@/components/LoadingGrid';
 import { buildMoviePath } from '@/utils/movieUrl';
 
 export default function ChannelClient({
@@ -28,7 +30,6 @@ export default function ChannelClient({
   const usedInitialRef = useRef(false);
 
   useEffect(() => {
-    setSubCategory('全部');
     if (!initialSubCategories.length) {
       fetch(`/api/categories?t=${encodeURIComponent(type)}`)
         .then((res) => res.json())
@@ -42,7 +43,7 @@ export default function ChannelClient({
   }, [type, initialSubCategories.length]);
 
   useEffect(() => {
-    fetch('/api/config').then((res) => res.json()).then((data) => setConfig(data));
+    fetch('/api/config').then((res) => res.json()).then((data) => setConfig(data)).catch(() => {});
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -61,8 +62,6 @@ export default function ChannelClient({
       !usedInitialRef.current
     ) {
       usedInitialRef.current = true;
-      setResults(initialResults);
-      setLoading(false);
       return;
     }
 
@@ -95,8 +94,8 @@ export default function ChannelClient({
     <div className="page-wrapper">
       <header className="site-header">
         <div className="container header-inner">
-          <Link href="/" className="logo-area">
-            <img src="/logo.png" alt="logo" className="logo-img" />
+          <Link href="/" className="logo-area" aria-label="小黑搜影首页">
+            <img src="/logo.png" alt="" className="logo-img" />
             <div className="logo-text">小黑<span>搜影</span></div>
           </Link>
           <nav className="nav-links">
@@ -109,16 +108,20 @@ export default function ChannelClient({
               );
             })}
           </nav>
-          <div className="header-right"></div>
+          <div className="header-right"><span className="live-dot" />资源实时更新</div>
         </div>
       </header>
 
-      <main className="container" style={{ flex: 1 }}>
-        <div className="section-header">
-          <h1 className="section-title">
-            最新{type}{subCategory !== '全部' && ` · ${subCategory}`}在线免费观看
-          </h1>
-          <div className="view-all" style={{ opacity: 0.5 }}>PAGE {page}</div>
+      <main className="container channel-main">
+        <div className="section-header channel-heading">
+          <div>
+            <span className="section-kicker">EXPLORE CHANNEL</span>
+            <h1 className="section-title">
+              最新{type}{subCategory !== '全部' && ` · ${subCategory}`}
+            </h1>
+            <p className="section-description">聚合全网优质{type}内容，持续为你更新。</p>
+          </div>
+          <div className="page-indicator">PAGE <strong>{page}</strong></div>
         </div>
 
         {subCategories.length > 0 && (
@@ -140,7 +143,8 @@ export default function ChannelClient({
                 if (!showAllTags && isSensitive) return null;
 
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={cat}
                     className={`filter-item ${subCategory === cat ? 'active' : ''}`}
                     onClick={() => {
@@ -149,38 +153,26 @@ export default function ChannelClient({
                     }}
                   >
                     {cat}
-                  </div>
+                  </button>
                 );
               })}
             </div>
             {(subCategories.length > 8 || subCategories.some((c) => c.includes('伦理'))) && (
-              <div
+              <button
+                type="button"
                 onClick={() => setShowAllTags(!showAllTags)}
-                style={{
-                  cursor: 'pointer',
-                  color: '#38bdf8',
-                  fontSize: '0.9rem',
-                  marginTop: '1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  fontWeight: '500',
-                  opacity: 0.8,
-                }}
+                className="filter-toggle"
               >
-                {showAllTags ? '收起分类 ↑' : '更多分类 (含隐藏) ↓'}
-              </div>
+                {showAllTags ? <><ChevronUp size={16} /> 收起分类</> : <><ChevronDown size={16} /> 更多分类</>}
+              </button>
             )}
           </div>
         )}
 
         {loading ? (
-          <div className="loading-con">
-            <div className="spinner"></div>
-            <div className="loading-text">正在搬运精彩内容...</div>
-          </div>
+          <LoadingGrid label={`正在加载${type}频道`} />
         ) : (
-          <>
+          results.length > 0 ? <>
             <div className="movie-grid">
               {displayResults.map((item, idx) => {
                 const itemId = item.vod_id || item.id;
@@ -190,14 +182,18 @@ export default function ChannelClient({
                   : buildMoviePath(item.title, itemId);
 
                 return (
-                  <Link key={`${itemId}-${idx}`} href={targetHref} className="movie-card">
+                  <Link key={`${itemId}-${idx}`} href={targetHref} className="movie-card" style={{ '--card-index': idx }}>
                     <div className="movie-poster-wrap">
                       <img
                         className="movie-poster-img"
-                        src={item.poster}
+                        src={item.poster || '/logo.png'}
                         alt={item.title}
-                        onError={(e) => { e.target.src = 'https://via.placeholder.com/400x600?text=No+Poster'; }}
+                        loading={idx > 5 ? 'lazy' : 'eager'}
+                        decoding="async"
+                        onError={(e) => { e.currentTarget.src = '/logo.png'; }}
                       />
+                      <div className="movie-poster-shade" />
+                      <span className="movie-play"><Play size={18} fill="currentColor" /></span>
                       <div className="movie-quality-tag">{item.source_tip || '高清'}</div>
                     </div>
                     <div className="movie-info-name">{item.title}</div>
@@ -208,11 +204,18 @@ export default function ChannelClient({
             </div>
 
             <div className="pagination">
-              <button type="button" className="page-btn" disabled={page <= 1} onClick={() => goToPage(page - 1)}>上一页</button>
+              <button type="button" className="page-btn" disabled={page <= 1} onClick={() => goToPage(page - 1)}><ChevronLeft size={17} />上一页</button>
               <div className="page-info">第 {page} 页</div>
-              <button type="button" className="page-btn" disabled={results.length < (isMobile ? 15 : 30)} onClick={() => goToPage(page + 1)}>下一页</button>
+              <button type="button" className="page-btn" disabled={results.length < (isMobile ? 15 : 30)} onClick={() => goToPage(page + 1)}>下一页<ChevronRight size={17} /></button>
             </div>
-          </>
+          </> : (
+            <div className="empty-state">
+              <div className="empty-icon"><Film size={26} /></div>
+              <h2>这个频道暂时没有内容</h2>
+              <p>稍后再来看看，或者切换其他分类继续探索。</p>
+              <Link href="/">返回首页</Link>
+            </div>
+          )
         )}
       </main>
 

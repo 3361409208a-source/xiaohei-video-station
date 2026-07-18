@@ -57,28 +57,74 @@ async function fetchWithTimeout(url, options = {}, timeout = 6000) {
   }
 }
 
-// 解析剧集链接
+// 解析剧集链接（兼容 $$$ 多线路拼接）
 function parseEpisodes(playUrlRaw) {
-  const epList = [];
-  if (playUrlRaw) {
-    const parts = playUrlRaw.replace(/\r/g, '').split('#');
-    for (const p of parts) {
-      if (p.includes('$')) {
-        try {
-          const subParts = p.split('$');
-          const name = subParts[0].trim();
-          const url = subParts.slice(1).join('$').trim();
-          const urlLower = url.toLowerCase();
-          if (urlLower.includes('.m3u8') || urlLower.includes('.mp4')) {
-            epList.push({ name, url });
-          }
-        } catch (e) {
-          // ignore
-        }
+  if (!playUrlRaw) return [];
+
+  const normalizeUrl = (url) => {
+    const trimmed = url.trim();
+    const lower = trimmed.toLowerCase();
+    if (lower.endsWith('.m3u8') || lower.endsWith('.mp4')) return trimmed;
+    if (lower.includes('/play/')) return `${trimmed.replace(/\/+$/, '')}/index.m3u8`;
+    return trimmed;
+  };
+
+  const isPlayable = (url) => {
+    const lower = url.toLowerCase();
+    return lower.startsWith('http') && (lower.includes('.m3u8') || lower.includes('.mp4') || lower.includes('/play/'));
+  };
+
+  const parseGroup = (group) => {
+    const episodes = [];
+    for (const part of group.replace(/\r/g, '').split('#')) {
+      const trimmed = part.trim();
+      if (!trimmed || !trimmed.includes('$')) continue;
+      const splitAt = trimmed.lastIndexOf('$');
+      const name = trimmed.slice(0, splitAt).trim();
+      const url = trimmed.slice(splitAt + 1).trim();
+      if (!isPlayable(url)) continue;
+      episodes.push({ name, url: normalizeUrl(url) });
+    }
+    return episodes;
+  };
+
+  const dedupe = (episodes) => {
+    const byName = new Map();
+    for (const ep of episodes) {
+      const prev = byName.get(ep.name);
+      if (!prev) {
+        byName.set(ep.name, ep);
+        continue;
+      }
+      if (ep.url.toLowerCase().includes('.m3u8') && !prev.url.toLowerCase().includes('.m3u8')) {
+        byName.set(ep.name, ep);
       }
     }
+    return Array.from(byName.values()).sort((a, b) => {
+      const num = (value) => {
+        const match = String(value).match(/(\d+)/);
+        return match ? Number(match[1]) : 9999;
+      };
+      return num(a.name) - num(b.name);
+    });
+  };
+
+  const groups = playUrlRaw.replace(/\r/g, '').split('$$$');
+  let best = [];
+  let bestScore = [-1, -1];
+
+  for (const group of groups) {
+    const parsed = dedupe(parseGroup(group));
+    if (!parsed.length) continue;
+    const m3u8Count = parsed.filter((ep) => ep.url.toLowerCase().includes('.m3u8')).length;
+    const score = [parsed.length, m3u8Count];
+    if (score[0] > bestScore[0] || (score[0] === bestScore[0] && score[1] > bestScore[1])) {
+      best = parsed;
+      bestScore = score;
+    }
   }
-  return epList;
+
+  return best;
 }
 
 // 数据格式归一化

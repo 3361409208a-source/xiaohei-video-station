@@ -16,6 +16,7 @@ import subprocess
 from datetime import datetime, timedelta
 from typing import Optional
 from db import get_db, init_db
+from play_url_parser import parse_play_episodes
 
 if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -172,17 +173,7 @@ def fetch_single_page(engine, type_id=None, keyword=None, pg=1):
     except: return []
 
 def parse_item(item, engine):
-    play_url_raw = item.get("vod_play_url", "")
-    ep_list = []
-    if play_url_raw:
-        parts = play_url_raw.replace('\r', '').split("#")
-        for p in parts:
-            if "$" in p:
-                try:
-                    name, url = p.split("$", 1)
-                    if any(ext in url.lower() for ext in [".m3u8", ".mp4"]):
-                        ep_list.append({"name": name, "url": url})
-                except: continue
+    ep_list = parse_play_episodes(item.get("vod_play_url", ""))
     return {
         "id": str(item["vod_id"]),
         "title": item["vod_name"],
@@ -448,16 +439,7 @@ def get_detail(id: str, src: Optional[str] = Query(None)):
             res = _http.get(f"{engine['api']}?ac=detail&ids={actual_vod_id}", timeout=8, headers=HEADERS).json()
             if res.get("list"):
                 item = res["list"][0]
-                play_url = item.get("vod_play_url", "")
-                ep_list = []
-                if play_url:
-                    for p in play_url.replace('\r', '').split('#'):
-                        if "$" in p:
-                            try:
-                                n, u = p.split("$", 1)
-                                if ".m3u8" in u.lower() or ".mp4" in u.lower():
-                                    ep_list.append({"name": n, "url": u})
-                            except: continue
+                ep_list = parse_play_episodes(item.get("vod_play_url", ""))
                 
                 # 实时拉取成功后同步更新数据库，保持链接新鲜
                 if ep_list:

@@ -99,6 +99,7 @@ export default async function ChannelPage({ params, searchParams }) {
       </nav>
       <Suspense fallback={<div className="loading-con"><div className="spinner"></div></div>}>
         <ChannelClient
+          key={`${type}-${page}`}
           type={type}
           initialPage={page}
           initialResults={initialResults}
