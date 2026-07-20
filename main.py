@@ -778,7 +778,88 @@ def video_proxy(request: Request, url: str = Query(...)):
             headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=3600"},
         )
 
-# ==================== 启动事件 ====================
+from pydantic import BaseModel
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
+
+try:
+    from openai import OpenAI
+    # Use DeepSeek API base url
+    openai_client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
+except:
+    openai_client = None
+
+class AiSearchRequest(BaseModel):
+    query: str
+
+@app.post("/api/ai/search")
+def ai_search(req: AiSearchRequest):
+    if not openai_client or not DEEPSEEK_API_KEY:
+        return {"error": "未配置 DeepSeek API Key，请在后端根目录下创建 .env 文件并写入 DEEPSEEK_API_KEY=您的密钥", "data": []}
+    
+    try:
+        system_prompt = """你是一个专业的电影推荐系统AI，用户会用自然语言搜索电影。
+请分析用户的意图，并提取以下可能的搜索参数（如果用户没有提到，则留空）：
+- category (如: '科幻', '动作', '喜剧', '悬疑', '恐怖', '爱情', '剧情', '战争', '短剧', '动漫', '解说')
+- keyword (用户提到的特定电影名、演员、导演或关键字)
+- min_score (用户提到的最低豆瓣评分，如 9.0)
+
+请必须且只能以 JSON 格式返回，例如：
+{"category": "科幻", "keyword": "星际穿越", "min_score": 9.0}
+"""
+        response = openai_client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": req.query},
+            ],
+            response_format={"type": "json_object"}
+        )
+        
+        extracted_data = json.loads(response.choices[0].message.content)
+        
+        conn = get_db()
+        c = conn.cursor()
+        
+        sql = "SELECT vod_id, title, category, year, db_score, pic as poster, hd_status, remarks FROM videos WHERE 1=1"
+        params = []
+        
+        if extracted_data.get('category'):
+            cat_sql, cat_params = build_category_where(extracted_data['category'])
+            sql += cat_sql
+            params.extend(cat_params)
+            
+        if extracted_data.get('keyword'):
+            sql += " AND title LIKE ?"
+            params.append(f"%{extracted_data['keyword']}%")
+            
+        if extracted_data.get('min_score'):
+            try:
+                score = float(extracted_data['min_score'])
+                sql += " AND CAST(db_score AS REAL) >= ?"
+                params.append(score)
+            except: pass
+            
+        sql += " ORDER BY update_time DESC LIMIT 20"
+        
+        c.execute(sql, params)
+        rows = c.fetchall()
+        conn.close()
+        
+        results = [dict(row) for row in rows]
+        return {
+            "query": req.query,
+            "parsed_intent": extracted_data,
+            "data": results
+        }
+        
+    except Exception as e:
+        return {"error": str(e), "data": []}
+
+# ==================== 事件 ====================
 
 @app.on_event("startup")
 async def startup_event():

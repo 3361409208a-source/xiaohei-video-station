@@ -168,7 +168,7 @@ export default function MobileHomeContent() {
         </div>
         
         {/* 中心突出的 AI 异形按钮 */}
-        <div className={styles.centerAiTab}>
+        <div className={styles.centerAiTab} onClick={() => router.push('/ai-search')}>
           <div className={styles.aiButtonOuter}>
             <div className={styles.aiButtonInner}>
               <Sparkles size={28} color="#fff" />
