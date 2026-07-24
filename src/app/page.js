@@ -160,6 +160,8 @@ export function DesktopHomeContent() {
     return item.category?.includes(activeCategory) || item.title?.includes(activeCategory);
   });
 
+  const [searchMode, setSearchMode] = useState('normal');
+
   return (
     <div className={styles.layoutWrapper}>
       {/* 头部导航 */}
@@ -178,16 +180,41 @@ export function DesktopHomeContent() {
         </nav>
 
         <div className={styles.headerRight}>
-          <form className={styles.searchBar} onSubmit={(e) => { e.preventDefault(); handleSearch(query); }}>
-            <Search size={16} color="#666" style={{ marginRight: '8px' }} />
+          <form className={styles.searchBar} onSubmit={(e) => { 
+            e.preventDefault(); 
+            if (searchMode === 'ai') {
+              router.push(`/ai-search?q=${encodeURIComponent(query)}`);
+            } else {
+              handleSearch(query); 
+            }
+          }}>
+            <div className={styles.searchModeSwitch}>
+              <button 
+                type="button" 
+                className={`${styles.modeBtn} ${searchMode === 'normal' ? styles.activeMode : ''}`} 
+                onClick={() => setSearchMode('normal')}
+              >
+                普通
+              </button>
+              <button 
+                type="button" 
+                className={`${styles.modeBtn} ${searchMode === 'ai' ? styles.activeAiMode : ''}`} 
+                onClick={() => setSearchMode('ai')}
+              >
+                <Sparkles size={12} /> AI 搜片
+              </button>
+            </div>
             <input 
               type="text" 
               className={styles.searchInput} 
-              placeholder="搜影片、演员、类型..." 
+              placeholder={searchMode === 'ai' ? "用自然语言搜片，如：高分科幻解说..." : "搜影片、演员、类型..."} 
               value={query} 
               onChange={e => setQuery(e.target.value)} 
             />
-            <button type="submit" className={styles.searchBtn}><Sparkles size={14} /> AI 搜索</button>
+            <button type="submit" className={styles.searchBtn}>
+              {searchMode === 'ai' ? <Sparkles size={13} /> : <Search size={13} />}
+              {searchMode === 'ai' ? 'AI 搜片' : '搜索'}
+            </button>
           </form>
           <button className={styles.iconBtn} title="历史记录"><History size={18} /></button>
           <button className={styles.iconBtn} title="收藏"><Star size={18} /></button>
@@ -216,7 +243,9 @@ export function DesktopHomeContent() {
                   <img 
                     src={item.poster || item.pic || item.vod_pic || '/logo.png'} 
                     alt={item.title} 
-                    className={styles.trendThumb} 
+                    className={styles.trendThumb}
+                    loading={idx < 3 ? 'eager' : 'lazy'}
+                    decoding="async"
                     onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.png'; }}
                   />
                   <div className={styles.trendInfo}>
@@ -238,6 +267,8 @@ export function DesktopHomeContent() {
                   src={item.poster || item.pic || '/logo.png'} 
                   alt={item.title} 
                   className={styles.historyThumb}
+                  loading="lazy"
+                  decoding="async"
                   onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.png'; }}
                 />
                 <div className={styles.historyInfo}>
@@ -356,7 +387,9 @@ export function DesktopHomeContent() {
                     <div className={styles.moviePoster}>
                       <img 
                         src={item.poster || item.pic || item.vod_pic || '/logo.png'} 
-                        alt={item.title} 
+                        alt={item.title}
+                        loading={i < 2 ? 'eager' : 'lazy'}
+                        decoding="async"
                         onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.png'; }}
                       />
                       <span className={styles.movieBadge}>AI 推荐</span>
@@ -400,7 +433,9 @@ export function DesktopHomeContent() {
                     <div className={styles.moviePoster}>
                       <img 
                         src={item.poster || item.pic || item.vod_pic || '/logo.png'} 
-                        alt={item.title} 
+                        alt={item.title}
+                        loading={i < 4 ? 'eager' : 'lazy'}
+                        decoding="async"
                         onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.png'; }}
                       />
                       <span className={styles.movieBadge} style={{ background: '#ffa502' }}>NEW</span>
@@ -430,7 +465,9 @@ export function DesktopHomeContent() {
                   <div className={styles.moviePoster} style={{ paddingTop: '56.25%' }}>
                     <img 
                       src={item.poster || item.pic || '/logo.png'} 
-                      alt={item.title} 
+                      alt={item.title}
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/logo.png'; }}
                     />
                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }}>
@@ -449,98 +486,6 @@ export function DesktopHomeContent() {
 
         {/* 右侧边栏 */}
         <aside>
-          {/* AI 观影助手 */}
-          <div className={styles.glassCard}>
-            <div className={styles.sectionTitle}>
-              <span><Sparkles size={16} style={{ display: 'inline', verticalAlign: 'text-bottom', color: '#b53cff' }} /> AI 观影助手</span>
-              {aiMessages.length > 0 && (
-                <span className={styles.more} onClick={() => setAiMessages([])}>清空对话</span>
-              )}
-            </div>
-            <div className={styles.aiAssistant}>
-              <div className={styles.aiAvatar}>
-                <img src="/logo.png" alt="AI" style={{ filter: 'hue-rotate(180deg) brightness(1.5)' }} />
-              </div>
-
-              {aiMessages.length === 0 ? (
-                <div className={styles.aiGreeting}>
-                  <strong>Hi, 我是小黑AI助手</strong><br />
-                  基于 40 万+ 资源库为您智能解构与推荐：
-                  <ul>
-                    <li>智能找片与精选分析</li>
-                    <li>独家解说生成与匹配</li>
-                    <li>基于喜好的语义推荐</li>
-                  </ul>
-                </div>
-              ) : (
-                <div style={{ maxHeight: '240px', overflowY: 'auto', marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'left' }}>
-                  {aiMessages.map((msg, i) => (
-                    <div key={i} style={{
-                      padding: '10px 12px',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      lineHeight: '1.5',
-                      background: msg.role === 'user' ? 'rgba(181, 60, 255, 0.2)' : 'rgba(0, 240, 255, 0.1)',
-                      border: `1px solid ${msg.role === 'user' ? 'rgba(181, 60, 255, 0.4)' : 'rgba(0, 240, 255, 0.3)'}`,
-                      color: '#fff'
-                    }}>
-                      <div style={{ fontWeight: 'bold', marginBottom: '4px', color: msg.role === 'user' ? '#d896ff' : '#00f0ff' }}>
-                        {msg.role === 'user' ? '你' : '小黑AI'}
-                      </div>
-                      <div>{msg.content}</div>
-
-                      {msg.movies && msg.movies.length > 0 && (
-                        <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          {msg.movies.map((m, mi) => (
-                            <Link key={mi} href={buildMoviePath(m.title, m.vod_id)} style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              padding: '4px 8px',
-                              background: 'rgba(255,255,255,0.05)',
-                              borderRadius: '6px',
-                              textDecoration: 'none',
-                              color: '#fff'
-                            }}>
-                              <img src={m.poster} alt={m.title} style={{ width: '28px', height: '38px', borderRadius: '4px', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = '/logo.png'; }} />
-                              <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                <div style={{ fontWeight: '600' }}>{m.title}</div>
-                                <div style={{ fontSize: '10px', color: '#888' }}>{m.year} · {m.category}</div>
-                              </div>
-                              <Play size={12} color="#00f0ff" />
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {aiLoading && (
-                    <div style={{ fontSize: '12px', color: '#00f0ff', padding: '8px' }}>🤖 小黑AI正在检索与深度分析中...</div>
-                  )}
-                </div>
-              )}
-
-              <div className={styles.aiPrompts}>
-                {['科幻大片', '高分电影', '最新剧集', '动画解说'].map(tag => (
-                  <div key={tag} className={styles.aiPrompt} onClick={() => handleAiSubmit(tag)}>{tag}</div>
-                ))}
-              </div>
-
-              <form className={styles.aiInputWrapper} onSubmit={(e) => { e.preventDefault(); handleAiSubmit(aiInput); }}>
-                <input 
-                  type="text" 
-                  className={styles.aiInput} 
-                  placeholder="询问 AI：想看什么类型的片子？" 
-                  value={aiInput} 
-                  onChange={e => setAiInput(e.target.value)} 
-                />
-                <button type="submit" className={styles.aiSend} disabled={aiLoading}>
-                  <ArrowRight size={14} />
-                </button>
-              </form>
-            </div>
-          </div>
-
           {/* 全网热搜 (真实后端数据) */}
           <div className={styles.glassCard}>
             <div className={styles.sectionTitle}>

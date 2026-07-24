@@ -196,6 +196,31 @@ def track_search(q):
     trends[q] = trends.get(q, 0) + 1
     sorted_trends = dict(sorted(trends.items(), key=lambda item: item[1], reverse=True)[:100])
     save_json(TRENDS_FILE, sorted_trends)
+import math
+
+@app.get("/api/search/count")
+def search_count(q: str = Query(None), t: str = Query(None), class_tag: str = Query(None)):
+    if t and not q:
+        conn = get_db()
+        cursor = conn.cursor()
+        query = "SELECT COUNT(*) FROM movies WHERE 1=1"
+        params = []
+
+        where_sql, where_params = build_category_where(t)
+        query += where_sql
+        params.extend(where_params)
+            
+        if class_tag:
+            query += " AND category = ?"
+            params.append(class_tag)
+            
+        cursor.execute(query, params)
+        total = cursor.fetchone()[0]
+        conn.close()
+        
+        page_size = 36
+        return {"total": total, "total_pages": math.ceil(total / page_size)}
+    return {"total": 0, "total_pages": 0}
 
 @app.get("/api/search")
 def search(q: str = Query(None), t: str = Query(None), class_tag: str = Query(None), pg: int = Query(1)):
@@ -239,6 +264,22 @@ def search(q: str = Query(None), t: str = Query(None), class_tag: str = Query(No
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(sources))) as executor:
         futures = [executor.submit(fetch_single_page, eng, keyword=q, pg=pg) for eng in sources]
         for future in concurrent.futures.as_completed(futures):
+            for item in future.result():
+                key = f"{item.get('title', '')}::{item.get('source_name', '')}"
+                if key not in unique_results:
+                    unique_results[key] = item
+    return list(unique_results.values())
+
+
+@app.get("/api/search/quick")
+def search_quick(q: str = Query(...), limit: int = Query(4)):
+    """轻量搜索：只查前 limit 个源，超时短，用于前端探活早返回"""
+    sources = get_active_sources()
+    selected = sources[:min(limit, len(sources))]
+    unique_results = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(selected))) as executor:
+        futures = {executor.submit(fetch_single_page, eng, keyword=q, pg=1): eng for eng in selected}
+        for future in concurrent.futures.as_completed(futures, timeout=6):
             for item in future.result():
                 key = f"{item.get('title', '')}::{item.get('source_name', '')}"
                 if key not in unique_results:
@@ -469,6 +510,47 @@ def get_detail(id: str, src: Optional[str] = Query(None)):
                 }
         except Exception as e:
             print(f"[Detail] 实时拉取失败 vod_id={actual_vod_id} src={actual_src}: {e}")
+
+    # 实时源失败时回读本地库 episodes，避免播放页直接挂空
+    try:
+        conn_fb = get_db()
+        conn_fb.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
+        cur_fb = conn_fb.cursor()
+        row_fb = None
+        if actual_src:
+            cur_fb.execute(
+                "SELECT * FROM movies WHERE vod_id = ? AND source_name = ? LIMIT 1",
+                (actual_vod_id, actual_src),
+            )
+            row_fb = cur_fb.fetchone()
+        if not row_fb:
+            cur_fb.execute(
+                "SELECT * FROM movies WHERE vod_id = ? ORDER BY update_time DESC, id ASC LIMIT 1",
+                (actual_vod_id,),
+            )
+            row_fb = cur_fb.fetchone()
+        conn_fb.close()
+
+        if row_fb:
+            ep_list = _parse_episodes(row_fb.get("episodes"))
+            if ep_list:
+                print(f"[Detail] 使用本地缓存 episodes vod_id={actual_vod_id} src={row_fb.get('source_name')}")
+                return {
+                    "vod_id": str(row_fb.get("vod_id") or actual_vod_id),
+                    "title": row_fb.get("title") or "",
+                    "poster": row_fb.get("poster") or "",
+                    "category": row_fb.get("category") or "",
+                    "description": row_fb.get("description") or "",
+                    "episodes": ep_list,
+                    "year": row_fb.get("year") or "",
+                    "area": row_fb.get("area") or "",
+                    "actor": row_fb.get("actor") or "",
+                    "remark": row_fb.get("remark") or "",
+                    "source_name": row_fb.get("source_name") or actual_src or "",
+                    "from_cache": True,
+                }
+    except Exception as e:
+        print(f"[Detail] 本地缓存回读失败: {e}")
 
     return None
 

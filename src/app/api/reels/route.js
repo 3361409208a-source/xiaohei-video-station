@@ -13,7 +13,7 @@ export async function GET(request) {
   try {
     const response = await fetch(backendUrl.toString(), { 
       cache: 'no-store',
-      signal: AbortSignal.timeout(2500)
+      signal: AbortSignal.timeout(3000)
     });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -22,12 +22,16 @@ export async function GET(request) {
     if (data && (data.status === 'error' || data.error)) {
       throw new Error(`API error: ${data.message || data.error}`);
     }
-    return NextResponse.json(data);
+    const resp = NextResponse.json(data);
+    resp.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
+    return resp;
   } catch (error) {
     console.warn('Fetch reels from backend failed, falling back to backup reels:', error.message);
     try {
       const data = await getReels(pg);
-      return NextResponse.json(data);
+      const resp = NextResponse.json(data);
+      resp.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
+      return resp;
     } catch (backupError) {
       return NextResponse.json({ error: 'Fallback reels failed' }, { status: 500 });
     }

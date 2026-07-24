@@ -152,7 +152,7 @@
   transition: border-color 0.2s, background 0.2s;
 }
 
-.sourceBtn:hover:not(:disabled) {
+.sourceBtn:hover:not(:disabled):not(.sourceBtnBad) {
   border-color: #ec2d7a;
   background: #222;
 }
@@ -160,6 +160,21 @@
 .sourceBtn:disabled {
   opacity: 0.6;
   cursor: wait;
+}
+
+.sourceBtnBad {
+  opacity: 0.4 !important;
+  border-color: #222 !important;
+  cursor: default !important;
+  pointer-events: none;
+}
+
+.sourceBtnBad .sourceName {
+  color: #555 !important;
+}
+
+.sourceBtnBad .sourceTip {
+  color: #444 !important;
 }
 
 .sourceBtnActive {
@@ -208,6 +223,48 @@
   border-radius: 10px;
   overflow: hidden;
   background: #000;
+}
+
+.playStatus {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(236, 45, 122, 0.12);
+  color: #ec2d7a;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+/* 换线遮罩 */
+.playerSwitchOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.72);
+  z-index: 10;
+  border-radius: 10px;
+}
+
+.playerSwitchOverlay::before {
+  content: '';
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(236, 45, 122, 0.25);
+  border-top-color: #ec2d7a;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.playerWrap {
+  position: relative;
 }
 
 .playerPlaceholder {

@@ -57,6 +57,20 @@ async function fetchWithTimeout(url, options = {}, timeout = 6000) {
   }
 }
 
+/** 限制并发，避免 backup 分类模式打爆上游 */
+async function mapPool(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length || 1) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await mapper(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 // 解析剧集链接（兼容 $$$ 多线路拼接）
 function parseEpisodes(playUrlRaw) {
   if (!playUrlRaw) return [];
@@ -230,28 +244,26 @@ export async function searchMovies(q, t, class_tag, pg = 1) {
     // 多抓几页 CMS 列表，保证过滤后仍有足够条目可分页
     const pagesToFetch = [pageNum, pageNum + 1, pageNum + 2, Math.max(1, pageNum * 2)];
 
-    const promises = [];
+    const jobs = [];
     for (const engine of sources) {
       for (const p of [...new Set(pagesToFetch)]) {
-        promises.push(
-          (async () => {
-            try {
-              const url = `${engine.api}?ac=detail&pg=${p}`;
-              const res = await fetchWithTimeout(url, {}, 6000);
-              const data = await res.json();
-              if (data && data.list && Array.isArray(data.list)) {
-                return data.list.map(item => parseItem(item, engine));
-              }
-            } catch (err) {
-              console.error(`Category fetch failed for ${engine.name} page ${p}:`, err.message);
-            }
-            return [];
-          })()
-        );
+        jobs.push({ engine, p });
       }
     }
 
-    const allResults = await Promise.all(promises);
+    const allResults = await mapPool(jobs, 6, async ({ engine, p }) => {
+      try {
+        const url = `${engine.api}?ac=detail&pg=${p}`;
+        const res = await fetchWithTimeout(url, {}, 6000);
+        const data = await res.json();
+        if (data && data.list && Array.isArray(data.list)) {
+          return data.list.map(item => parseItem(item, engine));
+        }
+      } catch (err) {
+        console.error(`Category fetch failed for ${engine.name} page ${p}:`, err.message);
+      }
+      return [];
+    });
     const uniqueResults = {};
     for (const list of allResults) {
       for (const item of list) {

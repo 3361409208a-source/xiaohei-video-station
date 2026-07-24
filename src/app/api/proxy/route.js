@@ -1,5 +1,49 @@
 import { isSafeProxyUrl } from '@/utils/proxySafety';
-import { NextResponse } from 'next/server';
+
+const PROXY_TIMEOUT_MS = 15000;
+
+/** CDN 防盗链：按上游 host 补 Referer 头 */
+const REFERER_MAP = {
+  'ffzy-online6.com': 'https://www.ffzy.tv/',
+  'ffzyapi.com': 'https://www.ffzy.tv/',
+  'zuidazym3u8.com': 'https://www.zuidazy.net/',
+  'zuidazy.me': 'https://www.zuidazy.net/',
+  'ijycnd.com': 'https://www.ijycnd.com/',
+  'xluuss.com': 'https://www.xluuss.com/',
+  'jisuzyv.com': 'https://www.jisuzyv.com/',
+  'baofeng11.com': 'https://www.baofeng11.com/',
+  'hongniuzy2.com': 'https://www.hongniuzy2.com/',
+  'hhzyapi.com': 'https://www.hhzyapi.com/',
+  'huyaapi.com': 'https://www.huyaapi.com/',
+  'jszyapi.com': 'https://www.jszyapi.com/',
+  'jyzyapi.com': 'https://www.jyzyapi.com/',
+  'lziapi.com': 'https://www.lziapi.com/',
+  'xinlangapi.com': 'https://www.xinlangapi.com/',
+  'bfzyapi.com': 'https://www.bfzyapi.com/',
+  'guangsuapi.com': 'https://www.guangsuapi.com/',
+  'ukuapi.com': 'https://www.ukuapi.com/',
+  'suoniapi.com': 'https://www.suoniapi.com/',
+  'sdzyapi.com': 'https://www.sdzyapi.com/',
+  'wujinapi.me': 'https://www.wujinapi.me/',
+  'apibdzy.com': 'https://www.apibdzy.com/',
+  'niuniuzy.me': 'https://www.niuniuzy.me/',
+  'apiyhzy.com': 'https://www.apiyhzy.com/',
+};
+
+function pickReferer(url) {
+  try {
+    const host = new URL(url).hostname;
+    // 尝试精确匹配；否则尝试匹配尾部（子域名情况）
+    if (REFERER_MAP[host]) return REFERER_MAP[host];
+    for (const [key, ref] of Object.entries(REFERER_MAP)) {
+      if (host.endsWith('.' + key) || host === key) return ref;
+    }
+    // 通用兜底：用上游自己的 host
+    return 'https://' + host + '/';
+  } catch {
+    return undefined;
+  }
+}
 
 function rewriteM3u8(content, originalUrl, proxyBase) {
   const lastSlashIndex = originalUrl.lastIndexOf("/");
@@ -41,8 +85,13 @@ export async function GET(request) {
       'Accept': '*/*',
       'Accept-Language': 'zh-CN,zh;q=0.9',
     };
+    const referer = pickReferer(url);
+    if (referer) headers['Referer'] = referer;
 
-    const response = await fetch(url, { headers });
+    const response = await fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
+    });
     if (!response.ok) {
       return new Response(`Upstream returned status ${response.status}`, { status: response.status });
     }
@@ -60,17 +109,22 @@ export async function GET(request) {
           'Cache-Control': 'no-cache',
         }
       });
-    } else {
-      return new Response(response.body, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': contentType || 'video/MP2T',
-          'Cache-Control': 'public, max-age=3600',
-        }
-      });
     }
+
+    // ts / 媒体分片：流式转发，避免大文件整包缓冲
+    return new Response(response.body, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': contentType || 'video/MP2T',
+        'Cache-Control': 'public, max-age=3600',
+      }
+    });
   } catch (error) {
+    const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError';
     console.error('Video proxy failed:', error);
-    return new Response(`Proxy failed: ${error.message}`, { status: 502 });
+    return new Response(
+      timedOut ? 'Proxy timeout' : `Proxy failed: ${error.message}`,
+      { status: timedOut ? 504 : 502 }
+    );
   }
 }

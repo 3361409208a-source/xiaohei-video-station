@@ -19,7 +19,7 @@ export async function GET(request) {
   try {
     const response = await fetch(backendUrl.toString(), { 
       cache: 'no-store',
-      signal: AbortSignal.timeout(2500)
+      signal: AbortSignal.timeout(8000)
     });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);

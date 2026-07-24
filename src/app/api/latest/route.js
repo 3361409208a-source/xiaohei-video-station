@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const response = await fetch(`${API_URL}/api/latest`, {
       cache: 'no-store',
-      signal: AbortSignal.timeout(2000)
+      signal: AbortSignal.timeout(3000)
     });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -16,12 +16,16 @@ export async function GET() {
     if (data && (data.status === 'error' || data.error)) {
       throw new Error(`API error: ${data.message || data.error}`);
     }
-    return NextResponse.json(data);
+    const resp = NextResponse.json(data);
+    resp.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
+    return resp;
   } catch (error) {
     console.warn('Fetch latest from backend failed, falling back to backup latest:', error.message);
     try {
       const data = await getLatest();
-      return NextResponse.json(data);
+      const resp = NextResponse.json(data);
+      resp.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=600');
+      return resp;
     } catch (backupError) {
       return NextResponse.json({ error: 'Fallback latest failed' }, { status: 500 });
     }
