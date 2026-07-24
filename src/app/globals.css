@@ -14,6 +14,10 @@
   --header-height: 80px;
   --radius-lg: 22px;
   --shadow-card: 0 22px 55px rgba(0, 0, 0, 0.35);
+  --header-shell-bg: rgba(17, 17, 20, 0.72);
+  --header-gradient-top: rgba(7, 7, 9, 0.94);
+  --header-gradient-mid: rgba(7, 7, 9, 0.62);
+  --page-overlay-top: rgba(7, 7, 9, 0.2);
 }
 
 /* 主题 2：极客森林 (Emerald Tech) */
@@ -60,6 +64,11 @@
   --text-muted: #6b7280;
   --line: rgba(17, 24, 39, 0.09);
   --line-strong: rgba(17, 24, 39, 0.16);
+  --header-shell-bg: rgba(255, 255, 255, 0.88);
+  --header-gradient-top: rgba(249, 250, 251, 0.96);
+  --header-gradient-mid: rgba(249, 250, 251, 0.72);
+  --page-overlay-top: rgba(249, 250, 251, 0.45);
+  --shadow-card: 0 18px 40px rgba(17, 24, 39, 0.08);
 }
 
 * {
@@ -465,6 +474,27 @@ a {
   border-color: rgba(var(--primary-rgb), 0.22);
   color: var(--text-main);
   transform: translateY(-1px);
+}
+
+.ai-showcase-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px dashed rgba(var(--primary-rgb), 0.35);
+  background: rgba(var(--primary-rgb), 0.08);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  text-decoration: none;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.ai-showcase-link:hover {
+  color: var(--text-main);
+  border-color: rgba(var(--primary-rgb), 0.55);
+  background: rgba(var(--primary-rgb), 0.14);
 }
 
 .hero-metrics {

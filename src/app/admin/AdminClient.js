@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import ThreeDashboard from '@/components/ThreeDashboard';
 import { mapToMajorCategory } from '@/utils/categoryRules';
+import { applySiteTheme } from '@/utils/siteTheme';
 import styles from './admin.module.css';
 
 export default function AdminClient({ initialStats }) {
@@ -92,7 +93,11 @@ export default function AdminClient({ initialStats }) {
 
   const fetchConfig = async () => {
     const res = await apiFetch('/api/admin/config');
-    if (res?.ok) setSiteConfig(await res.json());
+    if (res?.ok) {
+      const data = await res.json();
+      setSiteConfig(data);
+      applySiteTheme(data.theme);
+    }
   };
 
   const saveConfig = async () => {
@@ -101,7 +106,10 @@ export default function AdminClient({ initialStats }) {
       method: 'POST',
       body: JSON.stringify(siteConfig)
     });
-    if (res?.ok) alert("配置保存成功！");
+    if (res?.ok) {
+      applySiteTheme(siteConfig.theme);
+      alert("配置保存成功！");
+    }
     setLoading(false);
   };
 
@@ -234,9 +242,9 @@ export default function AdminClient({ initialStats }) {
                 <select
                   value={siteConfig.theme || ''}
                   onChange={e => {
-                    setSiteConfig({ ...siteConfig, theme: e.target.value });
-                    if (e.target.value) document.documentElement.setAttribute('data-theme', e.target.value);
-                    else document.documentElement.removeAttribute('data-theme');
+                    const nextTheme = e.target.value;
+                    setSiteConfig({ ...siteConfig, theme: nextTheme });
+                    applySiteTheme(nextTheme);
                   }}
                   className={styles.select}
                 >

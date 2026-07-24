@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
-  ChevronLeft, Send, Flame, Sparkles, Loader2, ArrowRight
+  ChevronLeft, Send, Flame, Sparkles, ArrowRight
 } from 'lucide-react';
 import styles from './ai-search.module.css';
 import { buildMoviePath } from '@/utils/movieUrl';
@@ -16,48 +16,19 @@ const hotSearches = [
 export default function AiSearchPage() {
   const router = useRouter();
   const [input, setInput] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  
   // History of chat. { type: 'user' | 'ai', content: string, results?: array }
   const [chatHistory, setChatHistory] = useState([]);
 
-  const handleSearch = async (queryToSearch) => {
+  const handleSearch = (queryToSearch) => {
     const q = (queryToSearch || input).trim();
     if (!q) return;
 
-    // Add user message
     setChatHistory(prev => [...prev, { type: 'user', content: q }]);
     setInput('');
-    setIsSearching(true);
-
-    try {
-      const res = await fetch('/api/ai/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: q })
-      });
-      const data = await res.json();
-      
-      if (data.error) {
-        setChatHistory(prev => [...prev, { 
-          type: 'ai', 
-          content: data.error
-        }]);
-      } else {
-        setChatHistory(prev => [...prev, { 
-          type: 'ai', 
-          content: '为你找到以下影片：',
-          results: data.data || []
-        }]);
-      }
-    } catch (err) {
-      setChatHistory(prev => [...prev, { 
-        type: 'ai', 
-        content: '抱歉，连接 AI 服务失败，请重试。'
-      }]);
-    } finally {
-      setIsSearching(false);
-    }
+    setChatHistory(prev => [...prev, {
+      type: 'ai',
+      content: '当前为 AI 搜片展示模式，暂未接入 AI 检索。请返回首页使用普通搜索查找影片。',
+    }]);
   };
 
   return (
@@ -76,7 +47,7 @@ export default function AiSearchPage() {
           <div className={styles.welcomeArea}>
             <div className={styles.aiSphere}>AI</div>
             <h1 className={styles.welcomeTitle}>AI智能搜片引擎</h1>
-            <p className={styles.welcomeSub}>用自然语言找到你想看的任何影片</p>
+            <p className={styles.welcomeSub}>展示版界面 · 暂不调用 AI 服务，请使用首页搜索</p>
             
             <div className={styles.hotSearches}>
               <div className={styles.hotSearchHeader}>
@@ -144,11 +115,6 @@ export default function AiSearchPage() {
           ))
         )}
         
-        {isSearching && (
-          <div className={styles.loadingIndicator}>
-            <Loader2 size={18} className="animate-spin" /> AI正在深度检索中...
-          </div>
-        )}
       </div>
 
       {/* 底部输入框 */}
@@ -165,7 +131,7 @@ export default function AiSearchPage() {
         </div>
         <button 
           className={styles.sendBtn} 
-          disabled={!input.trim() || isSearching}
+          disabled={!input.trim()}
           onClick={() => handleSearch()}
         >
           <Send size={18} />

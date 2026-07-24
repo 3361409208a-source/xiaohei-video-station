@@ -1,11 +1,11 @@
 .container {
   min-height: 100vh;
-  background-color: #050508;
-  background-image: 
-    radial-gradient(circle at top left, rgba(0, 240, 255, 0.05), transparent 400px),
-    radial-gradient(circle at center right, rgba(181, 60, 255, 0.05), transparent 400px);
-  color: #fff;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(var(--primary-rgb), 0.08), transparent 400px),
+    radial-gradient(circle at center right, rgba(var(--primary-rgb), 0.05), transparent 400px),
+    var(--bg-main);
+  color: var(--text-main);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   display: flex;
   flex-direction: column;
   padding-bottom: 70px;

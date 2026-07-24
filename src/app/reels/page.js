@@ -103,13 +103,13 @@ function MobileReelItem({ video, isActive, preload = false }) {
             <div className="player-area" onClick={() => dp.current?.toggle()}>
                 <div ref={playerRef} style={{ width: '100%', height: '100%' }}></div>
                 {!detail && isActive && !error && (
-                    <div className="loading-tip">
+                    <div className="reels-loading-tip">
                         <img src="/logo.gif" alt="loading" style={{ width: '60px', height: '60px', borderRadius: '10px' }} />
-                        <div style={{ marginTop: '8px' }}>正在接入信号...</div>
+                        <div>正在接入信号...</div>
                     </div>
                 )}
                 {error && isActive && (
-                    <div className="error-tip">
+                    <div className="reels-error-tip">
                         <div>😢 {error}</div>
                         <button onClick={(e) => {
                             e.stopPropagation();
@@ -144,9 +144,6 @@ function MobileReelItem({ video, isActive, preload = false }) {
             <style jsx>{`
                 .mobile-reel-unit { height: 100vh; width: 100vw; position: relative; background: #000; scroll-snap-align: start; overflow: hidden; }
                 .player-area { width: 100%; height: 100%; position: relative; }
-                .loading-tip { position: absolute; top: 40%; left: 50%; transform: translateX(-50%); color: #e11d48; font-weight: bold; text-align: center; }
-                .error-tip { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); color: #fff; text-align: center; z-index: 20; }
-                .error-tip button { margin-top: 10px; padding: 8px 20px; background: #e11d48; border: none; border-radius: 8px; color: #fff; font-weight: bold; cursor: pointer; }
                 .poster-placeholder { width: 100%; height: 100%; background-size: cover; background-position: center; filter: blur(10px); }
                 .mask { position: absolute; inset: 0; background: rgba(0,0,0,0.4); }
                 
@@ -394,9 +391,9 @@ function PlayerContent() {
     }, [pcMainVideo, isMobile]);
 
     if (loading) return (
-        <div className="full-loading">
+        <div className="full-loading full-loading--dark">
             <img src="/logo.gif" alt="loading" style={{ width: '80px', height: '80px', borderRadius: '12px' }} />
-            <div style={{ marginTop: '15px' }}>正在接入信号...</div>
+            <div>正在接入信号...</div>
         </div>
     );
 
@@ -416,7 +413,6 @@ function PlayerContent() {
                 ))}
                 <style jsx>{`
                 .mobile-scroller { height: 100vh; width: 100vw; overflow-y: scroll; scroll-snap-type: y mandatory; background: #000; -webkit-overflow-scrolling: touch; }
-                .full-loading { height: 100vh; background: #000; display: flex; align-items: center; justify-content: center; color: #e11d48; font-weight: bold; }
             `}</style>
             </div>
         );

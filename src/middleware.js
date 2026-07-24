@@ -8,19 +8,8 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  let inviteEnabled = false;
-  try {
-    const statusUrl = new URL('/api/invite/status', request.url);
-    const res = await fetch(statusUrl, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      inviteEnabled = Boolean(data.enabled);
-    }
-  } catch {
-    return NextResponse.next();
-  }
-
-  if (!inviteEnabled) {
+  // 邀请码关闭时直接放行，避免每次翻页/切分类都走内部 fetch
+  if (process.env.SITE_INVITE_GATE_ENABLED !== 'true') {
     return NextResponse.next();
   }
 
@@ -39,5 +28,7 @@ export async function middleware(request) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)',
+  ],
 };

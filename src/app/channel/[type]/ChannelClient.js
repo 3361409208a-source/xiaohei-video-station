@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Film, Play } from 'lucide-react';
 import LoadingGrid from '@/components/LoadingGrid';
 import { buildMoviePath } from '@/utils/movieUrl';
+import { buildPageItems, PAGE_SIZE } from '@/utils/pagination';
 
 export default function ChannelClient({
   type,
@@ -27,6 +28,7 @@ export default function ChannelClient({
   const [config, setConfig] = useState({ site_name: '小黑搜影', notice: '', footer: '' });
   const [isMobile, setIsMobile] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
+  const [pageMeta, setPageMeta] = useState({ total: 0, total_pages: 1 });
   const usedInitialRef = useRef(false);
 
   useEffect(() => {
@@ -67,7 +69,6 @@ export default function ChannelClient({
 
     const fetchData = async () => {
       setLoading(true);
-      window.scrollTo(0, 0);
       try {
         const classTag = subCategory === '全部' ? '' : subCategory;
         const apiCall = `/api/search?t=${encodeURIComponent(type)}&class_tag=${encodeURIComponent(classTag)}&pg=${page}&_nocache=${Date.now()}`;
@@ -83,12 +84,33 @@ export default function ChannelClient({
     fetchData();
   }, [type, page, subCategory, initialPage, initialResults]);
 
+  useEffect(() => {
+    const classTag = subCategory === '全部' ? '' : subCategory;
+    const params = new URLSearchParams({ t: type });
+    if (classTag) params.set('class_tag', classTag);
+
+    fetch(`/api/search/count?${params.toString()}`, { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        const totalPages = Math.max(1, Number(data.total_pages) || 1);
+        setPageMeta({
+          total: Number(data.total) || 0,
+          total_pages: totalPages,
+        });
+      })
+      .catch(() => {
+        setPageMeta({ total: 0, total_pages: Math.max(page, 1) });
+      });
+  }, [type, subCategory, page]);
+
   const goToPage = (newPage) => {
-    if (newPage < 1) return;
-    router.push(`/channel/${encodeURIComponent(type)}?pg=${newPage}`);
+    if (newPage < 1 || newPage > pageMeta.total_pages) return;
+    router.push(`/channel/${encodeURIComponent(type)}?pg=${newPage}`, { scroll: false });
   };
 
   const displayResults = isMobile ? results.slice(0, 15) : results;
+  const pageItems = buildPageItems(page, pageMeta.total_pages);
+  const hasNextPage = page < pageMeta.total_pages && results.length >= PAGE_SIZE;
 
   return (
     <div className="page-wrapper">
@@ -121,7 +143,7 @@ export default function ChannelClient({
             </h1>
             <p className="section-description">聚合全网优质{type}内容，持续为你更新。</p>
           </div>
-          <div className="page-indicator">PAGE <strong>{page}</strong></div>
+          <div className="page-indicator">第 <strong>{page}</strong> / {pageMeta.total_pages} 页</div>
         </div>
 
         {subCategories.length > 0 && (
@@ -149,7 +171,7 @@ export default function ChannelClient({
                     className={`filter-item ${subCategory === cat ? 'active' : ''}`}
                     onClick={() => {
                       setSubCategory(cat);
-                      router.push(`/channel/${encodeURIComponent(type)}?pg=1`);
+                      router.push(`/channel/${encodeURIComponent(type)}?pg=1`, { scroll: false });
                     }}
                   >
                     {cat}
@@ -205,8 +227,25 @@ export default function ChannelClient({
 
             <div className="pagination">
               <button type="button" className="page-btn" disabled={page <= 1} onClick={() => goToPage(page - 1)}><ChevronLeft size={17} />上一页</button>
-              <div className="page-info">第 {page} 页</div>
-              <button type="button" className="page-btn" disabled={results.length < (isMobile ? 15 : 30)} onClick={() => goToPage(page + 1)}>下一页<ChevronRight size={17} /></button>
+              <div className="page-numbers" role="navigation" aria-label="分页">
+                {pageItems.map((item) => (
+                  item.type === 'ellipsis' ? (
+                    <span key={item.key} className="page-ellipsis">…</span>
+                  ) : (
+                    <button
+                      key={item.value}
+                      type="button"
+                      className={`page-num ${page === item.value ? 'active' : ''}`}
+                      onClick={() => goToPage(item.value)}
+                      aria-current={page === item.value ? 'page' : undefined}
+                    >
+                      {item.value}
+                    </button>
+                  )
+                ))}
+              </div>
+              <div className="page-info">共 {pageMeta.total > 0 ? pageMeta.total : '—'} 条</div>
+              <button type="button" className="page-btn" disabled={!hasNextPage} onClick={() => goToPage(page + 1)}>下一页<ChevronRight size={17} /></button>
             </div>
           </> : (
             <div className="empty-state">

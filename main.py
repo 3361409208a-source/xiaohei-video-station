@@ -336,7 +336,7 @@ def get_latest():
     conn = get_db()
     conn.row_factory = lambda cursor, row: {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM movies ORDER BY update_time DESC LIMIT 12")
+    cursor.execute("SELECT * FROM movies ORDER BY update_time DESC LIMIT 24")
     rows = cursor.fetchall()
     results = []
     for row in rows:
@@ -371,7 +371,7 @@ def get_public_config():
         "site_name": cfg.get("site_name", "🐾 小黑搜影"), 
         "notice": cfg.get("notice", ""), 
         "footer": cfg.get("footer", "© 2026"),
-        "theme": cfg.get("theme", ""),
+        "theme": cfg.get("theme") or "green",
         "ads": cfg.get("ads", {"enabled": False, "slots": {}}),
         "private_traffic": _public_private_traffic(cfg),
         "invite": _public_invite(cfg),

@@ -97,9 +97,13 @@ export default async function ChannelPage({ params, searchParams }) {
           })}
         </ul>
       </nav>
-      <Suspense fallback={<div className="loading-con"><div className="spinner"></div></div>}>
+      <Suspense fallback={
+        <div className="page-loading-screen">
+          <div className="spinner"></div>
+          <div className="loading-text">正在加载...</div>
+        </div>
+      }>
         <ChannelClient
-          key={`${type}-${page}`}
           type={type}
           initialPage={page}
           initialResults={initialResults}
